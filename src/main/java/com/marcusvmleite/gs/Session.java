@@ -8,9 +8,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.time.Instant;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,40 +36,51 @@ public class Session extends Thread {
     }
 
     public void run() {
+
+        long start = Instant.now().toEpochMilli();
+
         try {
 
-            log.info("Session [{}] is now active.", this.sessionId);
-
+            this.clientSocket.setSoTimeout(TIMEOUT);
             this.out = new PrintWriter(clientSocket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-            long start = Instant.now().toEpochMilli();
-            Timer timer = createTimer(start);
+            log.info("Session [{}] is now active.", this.sessionId);
             out.println(String.format(Messages.GS_001.message(), this.sessionId));
-
             String inputLine;
+
             while ((inputLine = in.readLine()) != null) {
-                timer.cancel();
-                timer = createTimer(start);
                 if (inputLine.startsWith("HI") || inputLine.startsWith("BYE")) {
-                    if (!processGreetingMessage(start, inputLine)) return;
+                    if (!processGreetingMessage(start, inputLine)) {
+                        break;
+                    }
                 } else {
                     processGraphMessage(inputLine);
                 }
             }
 
-            finishSocket();
-
         } catch (IOException e) {
             log.error("An error occurred during Session [{}].", this.sessionId, e);
+            if (e instanceof SocketTimeoutException) {
+                long end = Instant.now().toEpochMilli();
+                long total = end - start;
+                log.info("Session [{}] with Client [{}] finished after [{}] ms.", sessionId, clientId, total);
+                out.println(String.format(Messages.GS_004.message(), this.clientId, total));
+            }
+        } finally {
+            finishSocket();
         }
     }
 
-    private void finishSocket() throws IOException {
-        log.info("Session [{}] with Client [{}] finished.", this.sessionId, this.clientId);
-        in.close();
-        out.close();
-        clientSocket.close();
+    private void finishSocket() {
+        try {
+            in.close();
+            out.close();
+            clientSocket.close();
+            log.info("Session [{}] with Client [{}] finished.", this.sessionId, this.clientId);
+        } catch (IOException e) {
+            log.error("An error occurred while finishing socket for Session [{}].", this.sessionId, e);
+        }
     }
 
     private void processGraphMessage(String inputLine) {
@@ -138,7 +148,7 @@ public class Session extends Thread {
         }
     }
 
-    private boolean processGreetingMessage(long start, String inputLine) throws IOException {
+    private boolean processGreetingMessage(long start, String inputLine) {
         boolean result = true;
         if (inputLine.startsWith(Messages.GS_000.message())) {
             Pattern pairRegex = Pattern.compile(REGEX_UUID);
@@ -153,31 +163,12 @@ public class Session extends Thread {
             long total = end - start;
             log.info("Session [{}] with Client [{}] finished after [{}] ms.", sessionId, clientId, total);
             out.println(String.format(Messages.GS_004.message(), this.clientId, total));
-            finishSocket();
             result = false;
         } else {
             log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
             out.println(Messages.GS_005.message());
         }
         return result;
-    }
-
-    private Timer createTimer(long start) {
-        Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                long end = Instant.now().toEpochMilli();
-                long total = end - start;
-                out.println(String.format(Messages.GS_004.message(), clientId, total));
-                try {
-                    finishSocket();
-                } catch (IOException e) {
-                    log.error("Error while finishing socket.", e);
-                }
-            }
-        }, TIMEOUT, TIMEOUT);
-        return timer;
     }
 
 }
