@@ -10,6 +10,7 @@ public enum Messages {
     PREFIX_REMOVE_EDGE("REMOVE EDGE"),
 
     NODE_REMOVED("NODE REMOVED"),
+    EDGE_REMOVED("EDGE REMOVED"),
 
     GS_000("HI, I AM"),
     GS_001("HI, I AM %s"),

@@ -5,14 +5,14 @@ import java.util.*;
 public class Graph {
 
     private Map<String, Node> nodes;
-    private Set<Edge> edges;
+    private Map<Edge, Edge> edges;
 
     public Graph() {
         this.nodes = new HashMap<>();
-        this.edges = new HashSet<>();
+        this.edges = new HashMap<>();
     }
 
-    public boolean addNode(String name) {
+    public synchronized boolean addNode(String name) {
         boolean result = false;
         if (!nodes.containsKey(name)) {
             nodes.put(name, new Node(name));
@@ -21,7 +21,7 @@ public class Graph {
         return result;
     }
 
-    public boolean addEdge(String from, String to, int weight) {
+    public synchronized boolean addEdge(String from, String to, int weight) {
         boolean result = true;
         Node nodeFrom = nodes.get(from);
         Node nodeTo = nodes.get(to);
@@ -29,24 +29,56 @@ public class Graph {
             result = false;
         } else {
             Edge edge = new Edge.Builder().from(nodeFrom).to(nodeTo).withWeight(weight).build();
-            if (!edges.contains(edge)) {
+            if (!edges.containsKey(edge)) {
                 nodeFrom.addEdge(edge);
-                edges.add(edge);
+                edges.put(edge, edge);
+            } else {
+                nodeFrom.addEdge(edges.get(edge));
             }
         }
         return result;
     }
 
-    public boolean removeNode(String name) {
+    public synchronized boolean removeNode(String name) {
         boolean result = false;
         if (nodes.containsKey(name)) {
             Node removed = nodes.remove(name);
             for (Edge edge : removed.edges) {
-                edges.remove(edge);
+                removeEdgeFromEdgeMap(edge);
+                removeEdgeFromNodeMap(edge.to, edge.from);
             }
             result = true;
         }
         return result;
+    }
+
+    public synchronized boolean removeEdge(String from, String to) {
+        boolean result = true;
+        Node nodeFrom = nodes.get(from);
+        Node nodeTo = nodes.get(to);
+        if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
+            result = false;
+        } else {
+            removeEdgeFromNodeMap(nodeFrom, nodeTo);
+            removeEdgeFromEdgeMap(nodeFrom, nodeTo);
+        }
+        return result;
+    }
+
+    private void removeEdgeFromEdgeMap(Edge edge) {
+        removeEdgeFromEdgeMap(edge.from, edge.to);
+    }
+
+    private void removeEdgeFromEdgeMap(Node nodeFrom, Node nodeTo) {
+        edges.entrySet().removeIf(e -> e.getKey().from.equals(nodeFrom) && e.getKey().to.equals(nodeTo));
+    }
+
+    private void removeEdgeFromNodeMap(Node nodeFrom, Node nodeTo) {
+        for (Map.Entry<String, Node> pair : nodes.entrySet()) {
+            if (pair.getValue().equals(nodeFrom)) {
+                pair.getValue().edges.removeIf(curr -> curr.to.equals(nodeTo));
+            }
+        }
     }
 
     static final class Node {
