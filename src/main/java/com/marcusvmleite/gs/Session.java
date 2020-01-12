@@ -10,7 +10,9 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class Session extends Thread {
 
@@ -48,7 +50,7 @@ public class Session extends Thread {
 
             while ((inputLine = in.readLine()) != null) {
                 if (inputLine.startsWith("HI") || inputLine.startsWith("BYE")) {
-                    if (!processGreetingMessage(start, inputLine)) {
+                    if (!processGreetingMessage(inputLine)) {
                         break;
                     }
                 } else {
@@ -91,6 +93,10 @@ public class Session extends Thread {
             removeNode(inputLine);
         } else if (inputLine.startsWith(Messages.PREFIX_REMOVE_EDGE.message())) {
             removeEdge(inputLine);
+        } else if (inputLine.startsWith(Messages.PREFIX_SHORTEST_PATH.message())) {
+            shortestPath(inputLine);
+        } else if (inputLine.startsWith(Messages.PREFIX_CLOSER_THAN.message())) {
+            closerThan(inputLine);
         }
     }
 
@@ -147,20 +153,50 @@ public class Session extends Thread {
         }
     }
 
-    private boolean processGreetingMessage(long start, String inputLine) {
-        boolean result = true;
+    private void shortestPath(String inputLine) {
+        String[] tokens = tokenizeInput(inputLine);
+        String from = tokens[2];
+        String to = tokens[3];
+        log.info("Getting Shortest Path from Node [{}] to Node [{}].", from, to);
+        Integer path = graph.shortestPath(from, to);
+        if (path == -1) {
+            log.warn("Could not get Shortest Path from Node [{}] to Node [{}] because one of " +
+                    "the Nodes do not exists.", from, to);
+            out.println(Messages.GS_0012.message());
+        } else {
+            log.info("Shortest Path from Node [{}] to Node [{}] is [{}].", from, to, path);
+            out.println(path);
+        }
+    }
+
+    private void closerThan(String inputLine) {
+        String[] tokens = tokenizeInput(inputLine);
+        String weight = tokens[2];
+        String to = tokens[3];
+        log.info("Getting Nodes Closer Than [{}] to Node [{}].", weight, to);
+        List<String> result = graph.closerThan(Integer.valueOf(weight), to);
+        if (result.isEmpty()) {
+            log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
+            out.println(Messages.GS_0012.message());
+        } else{
+            out.println(result.stream().collect(Collectors.joining(",")));
+        }
+    }
+
+    private boolean processGreetingMessage(String inputLine) {
+        boolean continueConversation = true;
         if (inputLine.startsWith(Messages.GS_000.message())) {
             String[] tokens = tokenizeInput(inputLine);
             this.clientId = tokens[3];
             log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
             out.println(String.format(Messages.GS_002.message(), this.clientId));
         } else if (Messages.GS_003.message().equals(inputLine)) {
-            result = false;
+            continueConversation = false;
         } else {
             log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
             out.println(Messages.GS_005.message());
         }
-        return result;
+        return continueConversation;
     }
 
     private String[] tokenizeInput(String inputLine) {

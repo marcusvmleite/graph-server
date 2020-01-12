@@ -15,8 +15,8 @@ public class Graph {
 
     public synchronized boolean addNode(String name) {
         boolean result = false;
-        if (!nodes.containsKey(name)) {
-            nodes.put(name, new Node(name));
+        if (!this.nodes.containsKey(name)) {
+            this.nodes.put(name, new Node(name));
             result = true;
         }
         return result;
@@ -24,17 +24,17 @@ public class Graph {
 
     public synchronized boolean addEdge(String from, String to, int weight) {
         boolean result = true;
-        Node nodeFrom = nodes.get(from);
-        Node nodeTo = nodes.get(to);
+        Node nodeFrom = this.nodes.get(from);
+        Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
             result = false;
         } else {
             Edge edge = new Edge.Builder().from(nodeFrom).to(nodeTo).withWeight(weight).build();
-            if (!edges.containsKey(edge)) {
+            if (!this.edges.containsKey(edge)) {
                 nodeFrom.addEdge(edge);
-                edges.put(edge, edge);
+                this.edges.put(edge, edge);
             } else {
-                nodeFrom.addEdge(edges.get(edge));
+                nodeFrom.addEdge(this.edges.get(edge));
             }
         }
         return result;
@@ -42,8 +42,8 @@ public class Graph {
 
     public synchronized boolean removeNode(String name) {
         boolean result = false;
-        if (nodes.containsKey(name)) {
-            Node removed = nodes.remove(name);
+        if (this.nodes.containsKey(name)) {
+            Node removed = this.nodes.remove(name);
             for (Edge edge : removed.edges) {
                 removeEdgeFromEdgeMap(edge);
                 removeEdgeFromNodeMap(edge.to, edge.from);
@@ -55,8 +55,8 @@ public class Graph {
 
     public synchronized boolean removeEdge(String from, String to) {
         boolean result = true;
-        Node nodeFrom = nodes.get(from);
-        Node nodeTo = nodes.get(to);
+        Node nodeFrom = this.nodes.get(from);
+        Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
             result = false;
         } else {
@@ -67,8 +67,8 @@ public class Graph {
     }
 
     public synchronized Integer shortestPath(String from, String to) {
-        Node nodeFrom = nodes.get(from);
-        Node nodeTo = nodes.get(to);
+        Node nodeFrom = this.nodes.get(from);
+        Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
             return -1;
         }
@@ -78,7 +78,7 @@ public class Graph {
     }
 
     public synchronized List<String> closerThan(int weight, String to) {
-        Node nodeTo = nodes.get(to);
+        Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeTo)) {
             return Collections.emptyList();
         }
@@ -102,7 +102,7 @@ public class Graph {
     }
 
     private void removeEdgeFromNodeMap(Node nodeFrom, Node nodeTo) {
-        for (Map.Entry<String, Node> pair : nodes.entrySet()) {
+        for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             if (pair.getValue().equals(nodeFrom)) {
                 pair.getValue().edges.removeIf(curr -> curr.to.equals(nodeTo));
             }
@@ -112,16 +112,24 @@ public class Graph {
     private Map<Node, Integer> performDijkstra(Node from) {
 
         Map<Node, Integer> distances = new HashMap<>();
-        Queue<Node> q = new ArrayDeque<>(nodes.size());
+        distances.put(from, 0);
+        Queue<Node> q = new ArrayDeque<>(this.nodes.size());
         q.offer(from);
         Node curr;
 
+        Set<Node> visited = new HashSet<>();
+
         while (!q.isEmpty()) {
             curr = q.poll();
+            if (visited.contains(curr)) {
+                continue;
+            }
+            visited.add(curr);
             for (Edge edge : curr.edges) {
                 q.offer(edge.to);
                 if (!distances.containsKey(edge.to) ||
-                        distances.get(edge.to) > edge.weight + distances.get(curr)) {
+                        distances.get(edge.to) > edge.weight + distances.get(curr) ||
+                        distances.get(edge.to) == 0) {
                     distances.put(edge.to, edge.weight + distances.get(curr));
                 }
             }
