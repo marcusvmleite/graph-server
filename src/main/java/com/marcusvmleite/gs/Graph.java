@@ -1,6 +1,7 @@
 package com.marcusvmleite.gs;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Graph {
 
@@ -8,8 +9,8 @@ public class Graph {
     private Map<Edge, Edge> edges;
 
     public Graph() {
-        this.nodes = new HashMap<>();
-        this.edges = new HashMap<>();
+        this.nodes = new ConcurrentHashMap<>();
+        this.edges = new ConcurrentHashMap<>();
     }
 
     public synchronized boolean addNode(String name) {
@@ -65,6 +66,33 @@ public class Graph {
         return result;
     }
 
+    public synchronized Integer shortestPath(String from, String to) {
+        Node nodeFrom = nodes.get(from);
+        Node nodeTo = nodes.get(to);
+        if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
+            return -1;
+        }
+        Map<Node, Integer> distances = performDijkstra(nodeFrom);
+        Integer result = distances.get(nodeTo);
+        return result != null ? result : Integer.MAX_VALUE;
+    }
+
+    public synchronized List<String> closerThan(int weight, String to) {
+        Node nodeTo = nodes.get(to);
+        if (Objects.isNull(nodeTo)) {
+            return Collections.emptyList();
+        }
+        Map<Node, Integer> distances = performDijkstra(nodeTo);
+        List<String> result = new ArrayList<>();
+        for (Map.Entry<Node, Integer> pair : distances.entrySet()) {
+            if (pair.getValue() < weight) {
+                result.add(pair.getKey().name);
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
     private void removeEdgeFromEdgeMap(Edge edge) {
         removeEdgeFromEdgeMap(edge.from, edge.to);
     }
@@ -79,6 +107,27 @@ public class Graph {
                 pair.getValue().edges.removeIf(curr -> curr.to.equals(nodeTo));
             }
         }
+    }
+
+    private Map<Node, Integer> performDijkstra(Node from) {
+
+        Map<Node, Integer> distances = new HashMap<>();
+        Queue<Node> q = new ArrayDeque<>(nodes.size());
+        q.offer(from);
+        Node curr;
+
+        while (!q.isEmpty()) {
+            curr = q.poll();
+            for (Edge edge : curr.edges) {
+                q.offer(edge.to);
+                if (!distances.containsKey(edge.to) ||
+                        distances.get(edge.to) > edge.weight + distances.get(curr)) {
+                    distances.put(edge.to, edge.weight + distances.get(curr));
+                }
+            }
+        }
+
+        return distances;
     }
 
     static final class Node {

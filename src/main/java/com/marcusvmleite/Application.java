@@ -1,11 +1,11 @@
 package com.marcusvmleite;
 
-import com.marcusvmleite.gs.GraphServer;
+import com.marcusvmleite.gs.Server;
 
 public class Application {
 
     public static void main(String[] args) {
-        GraphServer server = new GraphServer();
+        Server server = new Server();
         server.start();
     }
 

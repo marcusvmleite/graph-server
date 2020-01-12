@@ -6,16 +6,16 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.net.ServerSocket;
 
-public class GraphServer {
+public class Server {
 
-    private static final Logger log = LogManager.getLogger(GraphServer.class);
+    private static final Logger log = LogManager.getLogger(Server.class);
 
     private static final int PORT = 50000;
 
     private ServerSocket serverSocket;
     private Graph graph;
 
-    public GraphServer() {
+    public Server() {
         this.graph = new Graph();
     }
 
