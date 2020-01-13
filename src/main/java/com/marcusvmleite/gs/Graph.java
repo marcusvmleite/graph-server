@@ -160,16 +160,11 @@ public class Graph {
                 distances[node.idx][edge.to.idx] = edge.weight;
             }
         }
-        for (int k = 0; k < nodes.size(); k++) {
-            // Pick all vertices as source one by one
-            for (int i = 0; i < nodes.size(); i++) {
-                // Pick all vertices as destination for the
-                // above picked source
-                for (int j = 0; j < nodes.size(); j++) {
-                    // If vertex k is on the shortest path from
-                    // i to j, then update the value of dist[i][j]
-                    if (distances[i][k] + distances[k][j] < distances[i][j])
-                        distances[i][j] = distances[i][k] + distances[k][j];
+        for (int i = 0; i < nodes.size(); i++) {
+            for (int j = 0; j < nodes.size(); j++) {
+                for (int k = 0; k < nodes.size(); k++) {
+                    if (distances[j][i] + distances[i][k] < distances[j][k])
+                        distances[j][k] = distances[j][i] + distances[i][k];
                 }
             }
         }
