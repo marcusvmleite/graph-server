@@ -12,7 +12,6 @@ import java.net.SocketTimeoutException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class Session extends Thread {
 
@@ -130,9 +129,9 @@ public class Session extends Thread {
         String[] tokens = tokenizeInput(inputLine);
         String from = tokens[2];
         String to = tokens[3];
-        int weight = Integer.valueOf(tokens[4]);
+        int weight = Integer.parseInt(tokens[4]);
         log.info("Adding Edge from Node [{}] to Node [{}] with Weight [{}].", from, to, weight);
-        if (graph.addEdge(tokens[2], tokens[3], Integer.valueOf(tokens[4]))) {
+        if (graph.addEdge(tokens[2], tokens[3], weight)) {
             out.println(Messages.GS_0011.message());
         } else {
             log.warn("Could not add Edge from Node [{}] to Node [{}] with Weight [{}] because one of " +
@@ -174,12 +173,12 @@ public class Session extends Thread {
         String weight = tokens[2];
         String to = tokens[3];
         log.info("Getting Nodes Closer Than [{}] to Node [{}].", weight, to);
-        List<String> result = graph.closerThan(Integer.valueOf(weight), to);
+        List<String> result = graph.closerThan(Integer.parseInt(weight), to);
         if (result.isEmpty()) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
             out.println(Messages.GS_0012.message());
         } else{
-            out.println(result.stream().collect(Collectors.joining(",")));
+            out.println(String.join(",", result));
         }
     }
 

@@ -6,10 +6,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Graph {
 
     private Map<String, Node> nodes;
+    private Map<Integer, Node> nodesIdx;
     private Map<Edge, Edge> edges;
 
     public Graph() {
         this.nodes = new ConcurrentHashMap<>();
+        this.nodesIdx = new ConcurrentHashMap<>();
         this.edges = new ConcurrentHashMap<>();
     }
 
@@ -82,11 +84,12 @@ public class Graph {
         if (Objects.isNull(nodeTo)) {
             return Collections.emptyList();
         }
-        Map<Node, Integer> distances = performDijkstra(nodeTo);
+        double[][] distances = performFloydWarshall();
         List<String> result = new ArrayList<>();
-        for (Map.Entry<Node, Integer> pair : distances.entrySet()) {
-            if (pair.getValue() < weight) {
-                result.add(pair.getKey().name);
+        for (Map.Entry<String, Node> pair : nodes.entrySet()) {
+            Node node = pair.getValue();
+            if (distances[node.idx][nodeTo.idx] < weight) {
+                result.add(node.name);
             }
         }
         Collections.sort(result);
@@ -138,14 +141,58 @@ public class Graph {
         return distances;
     }
 
+    private double[][] performFloydWarshall() {
+        nodesIdx.clear();
+        double[][] distances = new double[nodes.size()][nodes.size()];
+        for (double[] row : distances) {
+            Arrays.fill(row, Double.POSITIVE_INFINITY);
+        }
+        int count = 0;
+        for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
+            Node node = pair.getValue();
+            node.idx = count;
+            nodesIdx.put(node.idx, node);
+            ++count;
+        }
+        for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
+            Node node = pair.getValue();
+            for (Edge edge : node.edges) {
+                distances[node.idx][edge.to.idx] = edge.weight;
+            }
+        }
+        for (int k = 0; k < nodes.size(); k++) {
+            // Pick all vertices as source one by one
+            for (int i = 0; i < nodes.size(); i++) {
+                // Pick all vertices as destination for the
+                // above picked source
+                for (int j = 0; j < nodes.size(); j++) {
+                    // If vertex k is on the shortest path from
+                    // i to j, then update the value of dist[i][j]
+                    if (distances[i][k] + distances[k][j] < distances[i][j])
+                        distances[i][j] = distances[i][k] + distances[k][j];
+                }
+            }
+        }
+        return distances;
+    }
+
+    public Map<String, Node> getNodes() {
+        return nodes;
+    }
+
+    public Map<Edge, Edge> getEdges() {
+        return edges;
+    }
+
     static final class Node {
 
+        int idx;
         String name;
-        List<Graph.Edge> edges;
+        Set<Graph.Edge> edges;
 
         Node(String name) {
             this.name = name;
-            this.edges = new ArrayList<>();
+            this.edges = new HashSet<>();
         }
 
         void addEdge(Edge edge) {
