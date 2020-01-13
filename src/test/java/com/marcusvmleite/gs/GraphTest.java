@@ -112,6 +112,31 @@ public class GraphTest {
     }
 
     @Test
+    public void testShortestPath2() {
+        Graph graph = getNewGraph();
+
+        assertTrue(graph.addNode("A"));
+        assertTrue(graph.addNode("B"));
+        assertTrue(graph.addNode("C"));
+        assertTrue(graph.addNode("D"));
+        assertTrue(graph.addNode("E"));
+        assertTrue(graph.addNode("F"));
+        assertTrue(graph.addNode("G"));
+
+        assertTrue(graph.addEdge("A", "G", 20));
+        assertTrue(graph.addEdge("A", "C", 1));
+        assertTrue(graph.addEdge("A", "D", 8));
+        assertTrue(graph.addEdge("B", "A", 7));
+        assertTrue(graph.addEdge("C", "E", 1));
+        assertTrue(graph.addEdge("C", "F", 2));
+        assertTrue(graph.addEdge("D", "E", 3));
+        assertTrue(graph.addEdge("E", "F", 6));
+        assertTrue(graph.addEdge("F", "G", 5));
+
+        assertEquals(Integer.valueOf(8), graph.shortestPath("A", "G"));
+    }
+
+    @Test
     public void testCloserThan() {
         Graph graph = getNewGraph();
 
