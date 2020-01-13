@@ -13,8 +13,7 @@ public class GraphTest {
 
     @Test
     public void testAddNode() {
-
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -31,8 +30,7 @@ public class GraphTest {
 
     @Test
     public void testAddEdge() {
-
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         graph.addNode(NODE_TEST_1);
         graph.addNode(NODE_TEST_2);
@@ -43,15 +41,14 @@ public class GraphTest {
         assertTrue(graph.addEdge(NODE_TEST_1, NODE_TEST_2, 2));
         assertFalse(graph.addEdge("UNKNOWN", NODE_TEST_2, 1));
 
-        assertEquals(2, graph.getEdges().size());
+        assertEquals(1, graph.getEdges().size());
 
-        assertEquals(2, graph.getNodes().get(NODE_TEST_1).edges.size());
+        assertEquals(1, graph.getNodes().get(NODE_TEST_1).edges.size());
     }
 
     @Test
     public void testRemoveNode() {
-
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -70,7 +67,7 @@ public class GraphTest {
 
     @Test
     public void testRemoveEdge() {
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -94,7 +91,7 @@ public class GraphTest {
 
     @Test
     public void testShortestPath() {
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -116,7 +113,7 @@ public class GraphTest {
 
     @Test
     public void testCloserThan() {
-        Graph graph = Graph.getInstance();
+        Graph graph = getNewGraph();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -129,9 +126,16 @@ public class GraphTest {
         assertTrue(graph.addEdge(NODE_TEST_1, NODE_TEST_3, 2));
         assertTrue(graph.addEdge(NODE_TEST_2, NODE_TEST_3, 5));
 
-        assertTrue(graph.closerThan(2, UNKNOWN).isEmpty());
-        assertEquals(2, graph.closerThan(10, NODE_TEST_3).size());
-        assertEquals(1, graph.closerThan(5, NODE_TEST_3).size());
+        assertNull(graph.closerThan(2, UNKNOWN));
+        assertEquals(2, graph.closerThan(10, NODE_TEST_1).size());
+        assertEquals(0, graph.closerThan(5, NODE_TEST_3).size());
+    }
+
+    private Graph getNewGraph() {
+        Graph graph = Graph.getInstance();
+        graph.getNodes().clear();
+        graph.getEdges().clear();
+        return graph;
     }
 
 }

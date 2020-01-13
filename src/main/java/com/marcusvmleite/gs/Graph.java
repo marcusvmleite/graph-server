@@ -147,8 +147,7 @@ public class Graph {
             for (Edge edge : curr.edges) {
                 if (!visited.contains(edge.to)) {
                     if (!distances.containsKey(edge.to) ||
-                            distances.get(edge.to) > edge.weight + distances.get(curr) ||
-                            distances.get(edge.to) == 0) {
+                            distances.get(edge.to) > edge.weight + distances.get(curr)) {
                         distances.put(edge.to, edge.weight + distances.get(curr));
                         q.offer(edge.to);
                     }
@@ -203,7 +202,7 @@ public class Graph {
 
         Node(String name) {
             this.name = name;
-            this.edges = new TreeSet<>();
+            this.edges = new HashSet<>();
         }
 
         void addEdge(Edge edge) {
@@ -231,7 +230,7 @@ public class Graph {
 
     }
 
-    private static final class Edge implements Comparable<Edge> {
+    private static final class Edge {
 
         Node from;
         Node to;
@@ -241,11 +240,6 @@ public class Graph {
             this.from = builder.from;
             this.to = builder.to;
             this.weight = builder.weight;
-        }
-
-        @Override
-        public int compareTo(Edge o) {
-            return this.weight - o.weight;
         }
 
         public static final class Builder {
