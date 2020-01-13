@@ -11,6 +11,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 public class Session extends Thread {
@@ -174,9 +175,13 @@ public class Session extends Thread {
         String to = tokens[3];
         log.info("Getting Nodes Closer Than [{}] to Node [{}].", weight, to);
         List<String> result = graph.closerThan(Integer.parseInt(weight), to);
-        if (result.isEmpty()) {
-            log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
+        if (Objects.isNull(result)) {
+            log.warn("Could not get Nodes Closer Than [{}] to Node [{}] because this Node does not exists.",
+                    weight, to);
             out.println(Messages.GS_0012.message());
+        } else if (result.isEmpty()) {
+            log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
+            out.println("");
         } else{
             out.println(String.join(",", result));
         }

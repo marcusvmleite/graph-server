@@ -14,7 +14,7 @@ public class GraphTest {
     @Test
     public void testAddNode() {
 
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -32,7 +32,7 @@ public class GraphTest {
     @Test
     public void testAddEdge() {
 
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         graph.addNode(NODE_TEST_1);
         graph.addNode(NODE_TEST_2);
@@ -51,7 +51,7 @@ public class GraphTest {
     @Test
     public void testRemoveNode() {
 
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -70,7 +70,7 @@ public class GraphTest {
 
     @Test
     public void testRemoveEdge() {
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -94,7 +94,7 @@ public class GraphTest {
 
     @Test
     public void testShortestPath() {
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());
@@ -116,7 +116,7 @@ public class GraphTest {
 
     @Test
     public void testCloserThan() {
-        Graph graph = new Graph();
+        Graph graph = Graph.getInstance();
 
         assertTrue(graph.addNode(NODE_TEST_1));
         assertEquals(1, graph.getNodes().size());

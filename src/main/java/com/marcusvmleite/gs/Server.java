@@ -13,11 +13,8 @@ public class Server {
     private static final int PORT = 50000;
 
     private ServerSocket serverSocket;
-    private Graph graph;
 
-    public Server() {
-        this.graph = new Graph();
-    }
+    public Server() {}
 
     public void start() {
 
@@ -27,7 +24,7 @@ public class Server {
             serverSocket = new ServerSocket(PORT);
             log.info("Socket is waiting for client requests...");
             while (true) {
-                new Session(serverSocket.accept(), this.graph).start();
+                new Session(serverSocket.accept(), Graph.getInstance()).start();
             }
         } catch (IOException e) {
             log.error("An error occurred during execution of Graph-Server.", e);

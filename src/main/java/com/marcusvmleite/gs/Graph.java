@@ -5,14 +5,21 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Graph {
 
+    private static final Graph INSTANCE = new Graph();
+
     private Map<String, Node> nodes;
-    private Map<Integer, Node> nodesIdx;
     private Map<Edge, Edge> edges;
 
-    public Graph() {
+    private boolean mustRecalculateFloydWarshall = true;
+    double[][] distances;
+
+    private Graph() {
         this.nodes = new ConcurrentHashMap<>();
-        this.nodesIdx = new ConcurrentHashMap<>();
         this.edges = new ConcurrentHashMap<>();
+    }
+
+    public synchronized static Graph getInstance() {
+        return INSTANCE;
     }
 
     public synchronized boolean addNode(String name) {
@@ -20,6 +27,7 @@ public class Graph {
         if (!this.nodes.containsKey(name)) {
             this.nodes.put(name, new Node(name));
             result = true;
+            this.mustRecalculateFloydWarshall = true;
         }
         return result;
     }
@@ -35,8 +43,13 @@ public class Graph {
             if (!this.edges.containsKey(edge)) {
                 nodeFrom.addEdge(edge);
                 this.edges.put(edge, edge);
+                this.mustRecalculateFloydWarshall = true;
             } else {
-                nodeFrom.addEdge(this.edges.get(edge));
+                Edge existingEdge = edges.get(edge);
+                if (weight < existingEdge.weight) {
+                    existingEdge.weight = weight;
+                    this.mustRecalculateFloydWarshall = true;
+                }
             }
         }
         return result;
@@ -51,6 +64,7 @@ public class Graph {
                 removeEdgeFromNodeMap(edge.to, edge.from);
             }
             result = true;
+            this.mustRecalculateFloydWarshall = true;
         }
         return result;
     }
@@ -64,6 +78,7 @@ public class Graph {
         } else {
             removeEdgeFromNodeMap(nodeFrom, nodeTo);
             removeEdgeFromEdgeMap(nodeFrom, nodeTo);
+            this.mustRecalculateFloydWarshall = true;
         }
         return result;
     }
@@ -82,13 +97,18 @@ public class Graph {
     public synchronized List<String> closerThan(int weight, String to) {
         Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeTo)) {
-            return Collections.emptyList();
+            return null;
         }
-        double[][] distances = performFloydWarshall();
+        if (this.mustRecalculateFloydWarshall) {
+            this.distances = performFloydWarshall();
+
+            //We'll recalculate Floyd-Warshall only if the Graph change.
+            this.mustRecalculateFloydWarshall = false;
+        }
         List<String> result = new ArrayList<>();
         for (Map.Entry<String, Node> pair : nodes.entrySet()) {
             Node node = pair.getValue();
-            if (distances[node.idx][nodeTo.idx] < weight) {
+            if (!node.equals(nodeTo) && this.distances[nodeTo.idx][node.idx] < weight) {
                 result.add(node.name);
             }
         }
@@ -142,7 +162,6 @@ public class Graph {
     }
 
     private double[][] performFloydWarshall() {
-        nodesIdx.clear();
         double[][] distances = new double[nodes.size()][nodes.size()];
         for (double[] row : distances) {
             Arrays.fill(row, Double.POSITIVE_INFINITY);
@@ -150,9 +169,7 @@ public class Graph {
         int count = 0;
         for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             Node node = pair.getValue();
-            node.idx = count;
-            nodesIdx.put(node.idx, node);
-            ++count;
+            node.idx = count++;
         }
         for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             Node node = pair.getValue();
@@ -264,8 +281,7 @@ public class Graph {
             }
             Edge edge = (Edge) o;
             return edge.from.equals(this.from) &&
-                    edge.to.equals(this.to) &&
-                    edge.weight == this.weight;
+                    edge.to.equals(this.to);
         }
 
         @Override
@@ -273,7 +289,6 @@ public class Graph {
             int result = 17;
             result = 31 * result + from.hashCode();
             result = 31 * result + to.hashCode();
-            result = 31 * result + this.weight;
             return result;
         }
 
