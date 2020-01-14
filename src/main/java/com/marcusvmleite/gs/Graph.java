@@ -3,25 +3,93 @@ package com.marcusvmleite.gs;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Class that represents a Directed Graph.
+ * This class is a Singleton and will be shared by
+ * all Client Sessions during application life-cycle.
+ *
+ * It provides operations to build the Graph:
+ *      - Add and Remove a Node;
+ *      - Add and Remove an Edge.
+ * Besides, provides some common queries:
+ *      - Shortest Path between two Nodes, calculated
+ *        with Dijkstra Algorithm;
+ *      - Closest Nodes from a specific Node within a distance,
+ *        calculated with Floyd-Warshall Algorithm.
+ *
+ * All public methods are Synchronized to provide Thread-Safety
+ * and Graph Consistency between changing structure operations
+ * and queries.
+ *
+ * @author marcusvmleite
+ * @since 13.01.2020
+ * @version 1.0
+ */
 public class Graph {
 
+    /**
+     * Unique instance (Singleton Pattern).
+     */
     private static final Graph INSTANCE = new Graph();
 
+    /**
+     * Map to keep all Nodes of the Graph.
+     */
     private Map<String, Node> nodes;
+
+    /**
+     * Map to keep all Edges of the Graph.
+     */
     private Map<Edge, Edge> edges;
 
+    /**
+     * Flag to control when do we need to (re)calculate
+     * Floyd-Warshall. As this calculate Algorithm calculates
+     * distance between all Nodes of the Graph, this is not a
+     * very performatic operation (Big O for Floyd-Warshall is
+     * O(N^3), where N is the number of Nodes.
+     *
+     * When we calculate it, we'll only calculate again
+     * when there is change in the Graph's structure.
+     */
     private boolean mustRecalculateFloydWarshall = true;
-    double[][] distances;
 
+    /**
+     * Floyd-Warshall calculated distances between all
+     * Nodes in the Graph.
+     */
+    double[][] distancesFloydWarshall;
+
+    /**
+     * Class constructor that initializes Thread-Safe Maps.
+     */
     private Graph() {
         this.nodes = new ConcurrentHashMap<>();
         this.edges = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Method responsible for obtaining the single Instance
+     * of this class.
+     *
+     * @return Graph's unique instance.
+     */
     public synchronized static Graph getInstance() {
         return INSTANCE;
     }
 
+    /**
+     * Method responsible for adding a {@link Node} to the Graph.
+     * The Node will be added only if it does not exists.
+     * This check is done by its name, so the Graph must have
+     * only one Node with a specific name.
+     *
+     * When we add a new node, we must tell the Graph
+     * that next time we'll need to recalculate Floyd-Warshall.
+     *
+     * @param name Name of the {@link Node} being added.
+     * @return true if successfully added, false otherwise.
+     */
     public synchronized boolean addNode(String name) {
         boolean result = false;
         if (!this.nodes.containsKey(name)) {
@@ -32,6 +100,23 @@ public class Graph {
         return result;
     }
 
+    /**
+     * Method responsible for adding an {@link Edge} to the Graph.
+     * The method checks for the existence of the provided
+     * Nodes by its names.
+     *
+     * If an Edge between provided Nodes already exists
+     * with a biggest weight, the method will only update
+     * the weight of the existent Edge.
+     *
+     * When we add a new Edge, we must tell the Graph
+     * that next time we'll need to recalculate Floyd-Warshall.
+     *
+     * @param from From Node name.
+     * @param to To Node name.
+     * @param weight Weight of the Edge being added.
+     * @return true if successfully added, false otherwise.
+     */
     public synchronized boolean addEdge(String from, String to, int weight) {
         boolean result = true;
         Node nodeFrom = this.nodes.get(from);
@@ -55,6 +140,18 @@ public class Graph {
         return result;
     }
 
+    /**
+     * Method responsible for removing a {@link Node}
+     * from the Graph. It will check for the Node's existence.
+     * It will check for existent Edges connected to this
+     * Node and remove them accordingly.
+     *
+     * When we remove a Node, we must tell the Graph
+     * that next time we'll need to recalculate Floyd-Warshall.
+     *
+     * @param name Name of the Node being removed.
+     * @return true if successfully added, false otherwise.
+     */
     public synchronized boolean removeNode(String name) {
         boolean result = false;
         if (this.nodes.containsKey(name)) {
@@ -69,6 +166,17 @@ public class Graph {
         return result;
     }
 
+    /**
+     * Method responsible for removing an {@link Edge}
+     * from the Graph. It will check for the Nodes' existence.
+     *
+     * When we remove a Node, we must tell the Graph
+     * that next time we'll need to recalculate Floyd-Warshall.
+     *
+     * @param from From Node of the Edge.
+     * @param to To Node of the Edge.
+     * @return true if successfully added, false otherwise.
+     */
     public synchronized boolean removeEdge(String from, String to) {
         boolean result = true;
         Node nodeFrom = this.nodes.get(from);
@@ -83,6 +191,21 @@ public class Graph {
         return result;
     }
 
+    /**
+     * Method responsible for obtaining the Shortest Distance
+     * between two provided Nodes. It will check for the Nodes'
+     * existence.
+     *
+     * This method uses Dijkstra's Algorithm for calculating
+     * the distance between a Node and all other Nodes of the Graph.
+     *
+     * If the nodes are not connected, it will return Integer.MAX_VALUE.
+     *
+     * @param from From Node of the Edge.
+     * @param to To Node of the Edge.
+     * @return Calculated distance between the nodes, of type {@link Integer}
+     *         If at least one of the Nodes does not exists, -1 will be returned.
+     */
     public synchronized Integer shortestPath(String from, String to) {
         Node nodeFrom = this.nodes.get(from);
         Node nodeTo = this.nodes.get(to);
@@ -94,21 +217,38 @@ public class Graph {
         return result != null ? result : Integer.MAX_VALUE;
     }
 
+    /**
+     * Method responsible for obtaining the nodes that are closer to
+     * a provided Node than the given weight. It will check for the
+     * Nodes's existence.
+     *
+     * This method uses Floyd-Warshall's Algorithm, that calculates
+     * all distances between all Nodes in the Graph. When calculated,
+     * it will be flagged that we do not need to recalculate it, unless
+     * there is a change in the Graph's structure.
+     *
+     * @param weight Provided weight.
+     * @param to Target node for calculation.
+     * @return List os Nodes's names closer to the provided Node.
+     */
     public synchronized List<String> closerThan(int weight, String to) {
         Node nodeTo = this.nodes.get(to);
         if (Objects.isNull(nodeTo)) {
             return null;
         }
-        if (this.mustRecalculateFloydWarshall) {
-            this.distances = performFloydWarshall();
 
-            //We'll recalculate Floyd-Warshall only if the Graph change.
+        //Check if its needed to (re)calculate Floyd-Warshall,
+        //otherwise it will be used previously calculated result.
+        if (this.mustRecalculateFloydWarshall) {
+            this.distancesFloydWarshall = performFloydWarshall();
+
+            //We'll (re)calculate again Floyd-Warshall only if the Graph change.
             this.mustRecalculateFloydWarshall = false;
         }
         List<String> result = new ArrayList<>();
         for (Map.Entry<String, Node> pair : nodes.entrySet()) {
             Node node = pair.getValue();
-            if (!node.equals(nodeTo) && this.distances[nodeTo.idx][node.idx] < weight) {
+            if (!node.equals(nodeTo) && this.distancesFloydWarshall[nodeTo.idx][node.idx] < weight) {
                 result.add(node.name);
             }
         }
@@ -116,14 +256,34 @@ public class Graph {
         return result;
     }
 
+    /**
+     * Remove an {@link Edge} from the Edges' map.
+     *
+     * @param edge Provided Edge for removal.
+     */
     private void removeEdgeFromEdgeMap(Edge edge) {
         removeEdgeFromEdgeMap(edge.from, edge.to);
     }
 
+    /**
+     * Remove an {@link Edge} from the Edges' map provided
+     * the Nodes that compose it.
+     *
+     * @param nodeFrom From Node of the Edge.
+     * @param nodeTo To Node of the Edge.
+     */
     private void removeEdgeFromEdgeMap(Node nodeFrom, Node nodeTo) {
         edges.entrySet().removeIf(e -> e.getKey().from.equals(nodeFrom) && e.getKey().to.equals(nodeTo));
     }
 
+    /**
+     * Method responsible for scanning all the Nodes in the Nodes' map
+     * and removing all occurrences of the Edge composed by the provided
+     * Nodes.
+     *
+     * @param nodeFrom From Node of the Edge.
+     * @param nodeTo To Node of the Edge.
+     */
     private void removeEdgeFromNodeMap(Node nodeFrom, Node nodeTo) {
         for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             if (pair.getValue().equals(nodeFrom)) {
@@ -162,16 +322,28 @@ public class Graph {
         return distances;
     }
 
+    /**
+     * Performs Floyd-Warshall Algorithm on the Graph.
+     * Floyd-Warshall is a well known algorithm that calculates
+     * the shortest distance between all Nodes in a directed and
+     * weighted graph.
+     *
+     * @return Calculated distances stored in a 2D Matrix.
+     */
     private double[][] performFloydWarshall() {
         double[][] distances = new double[nodes.size()][nodes.size()];
         for (double[] row : distances) {
             Arrays.fill(row, Double.POSITIVE_INFINITY);
         }
+        //We give each Node a unique index for helping us
+        //storing it in the 2D Matrix.
         int count = 0;
         for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             Node node = pair.getValue();
             node.idx = count++;
         }
+        //Then we initialize our distance matrix with the current
+        //known weights from our edges.
         for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
             Node node = pair.getValue();
             for (Edge edge : node.edges) {
@@ -189,27 +361,75 @@ public class Graph {
         return distances;
     }
 
+    /**
+     * Get the Nodes of the Graph.
+     *
+     * @return Map of Nodes.
+     */
     public Map<String, Node> getNodes() {
         return nodes;
     }
 
+    /**
+     * Get the Edges of the Graph.
+     *
+     * @return Map of Edges.
+     */
     public Map<Edge, Edge> getEdges() {
         return edges;
     }
 
-    static final class Node {
+    /**
+     * Inner class that represents a Node in the Graph.
+     * Attributes have accessibility default to make the
+     * Graph code less verbose (and this class is used
+     * only inside Graph).
+     *
+     * @author marcusvmleite
+     * @since 13.01.2020
+     * @version 1.0
+     */
+    private static final class Node {
 
+        /**
+         * Index that will be used to assemble the 2D Matrix
+         * that is used to compute Floyd-Warshall Algorithm.
+         */
         int idx;
+
+        /**
+         * Name of the Node.
+         */
         String name;
+
+        /**
+         * All edges from this done.
+         */
         Set<Graph.Edge> edges;
 
+        /**
+         * This redundant weight attribute will be used for the
+         * PriorityQueue in Dijkstra Algorithm.
+         */
         int weight;
 
+        /**
+         * Node's constructor.
+         * Edges set is built with {@link TreeSet} to guarantee
+         * sorting by the Edge's weight, needed for Dijkstra Algorithm.
+         *
+         * @param name Name of the Node.
+         */
         Node(String name) {
             this.name = name;
             this.edges = new TreeSet<>();
         }
 
+        /**
+         * Add a {@link Edge} to the adjacency set.
+         *
+         * @param edge {@link Edge} to be added.
+         */
         void addEdge(Edge edge) {
             this.edges.add(edge);
         }
@@ -235,10 +455,31 @@ public class Graph {
 
     }
 
+    /**
+     * Inner class that represents an Edge in the Graph.
+     * Attributes have accessibility default to make the
+     * Graph code less verbose (and this class is used
+     * only inside Graph).
+     *
+     * @author marcusvmleite
+     * @since 13.01.2020
+     * @version 1.0
+     */
     private static final class Edge implements Comparable<Edge> {
 
+        /**
+         * From {@link Node}.
+         */
         Node from;
+
+        /**
+         * To {@link Node}.
+         */
         Node to;
+
+        /**
+         * Weight of the Edge.
+         */
         int weight;
 
         Edge(Builder builder) {
@@ -247,6 +488,9 @@ public class Graph {
             this.weight = builder.weight;
         }
 
+        /**
+         * Builder Pattern.
+         */
         public static final class Builder {
 
             private Node from;
