@@ -14,18 +14,80 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Class that represents a Client's Session (conversation).
+ * It processes incoming messages and performs actions
+ * depending on its contents.
+ *
+ * This class extends {@link Thread} so the application
+ * is able to handle multiple Session at the same time.
+ *
+ * Valid incoming messages from the Client are:
+ *
+ *    - Greeting messages:
+ *      - HI, I AM <name>
+ *      - BYE MATE
+ *
+ *    - Graph messages:
+ *      - ADD NODE <x>
+ *      - ADD EDGE <x> <y> <weight>
+ *      - REMOVE NODE <x>
+ *      - REMOVE EDGE <x> <y>
+ *      - SHORTEST PATH <x> <y>
+ *      - CLOSER THAN <weight> <x>
+ *
+ * For each message above, the server will reply with
+ * another one, depending on how the process finished
+ * successfully or not.
+ *
+ * @author marcusvmleite
+ * @since 13.01.2020
+ * @version 1.0
+ */
 public class Session extends Thread {
 
     private static final Logger log = LogManager.getLogger(Session.class);
 
+    /**
+     * Timeout for the Socket. After this time
+     * of innactivity the Session will be finalised and a final
+     * message will be sent to the Client
+     * "BYE <name>, WE SPOKE FOR <X> MS"
+     *
+     * Where <name> is the name of the Client and X is the
+     * total time of the conversations in milliseconds.
+     */
     private static final int TIMEOUT = 30000;
 
+    /**
+     * Socket of the Client.
+     */
     private Socket clientSocket;
+
+    /**
+     * ID of the Session, represented by a unique {@link UUID}
+     */
     private String sessionId;
+
+    /**
+     * Client ID received via greeting message "HI, I AM <name>"
+     */
     private String clientId;
+
+    /**
+     * {@link Graph} object. This object is a Singleton and it is
+     * shared between all existent Sessions.
+     */
     private Graph graph;
 
+    /**
+     * For sending back messages to the Client.
+     */
     private PrintWriter out;
+
+    /**
+     * For reading messages from the Client.
+     */
     private BufferedReader in;
 
     public Session(Socket socket, Graph graph) {
@@ -36,6 +98,8 @@ public class Session extends Thread {
 
     public void run() {
 
+        //Mark the starting time of the conversation, for
+        //helping calculating the total time of the conversation.
         long start = Instant.now().toEpochMilli();
 
         try {
@@ -49,7 +113,8 @@ public class Session extends Thread {
             String inputLine;
 
             while ((inputLine = in.readLine()) != null) {
-                if (inputLine.startsWith("HI") || inputLine.startsWith("BYE")) {
+                if (inputLine.startsWith(Messages.PREFIX_HI.message()) ||
+                        inputLine.startsWith(Messages.PREFIX_BYE.message())) {
                     if (!processGreetingMessage(inputLine)) {
                         break;
                     }
@@ -102,10 +167,9 @@ public class Session extends Thread {
 
     private void removeEdge(String inputLine) {
         String[] tokens = tokenizeInput(inputLine);
-        String from = tokens[2];
-        String to = tokens[3];
+        String from = tokens[2], to = tokens[3];
         log.info("Removing Edge from Node [{}] to Node [{}].", from, to);
-        if (graph.removeEdge(tokens[2], tokens[3])) {
+        if (graph.removeEdge(from, tokens[3])) {
             out.println(Messages.EDGE_REMOVED.message());
         } else {
             log.warn("Could not remove Edge from Node [{}] to Node [{}] because one of " +
@@ -128,11 +192,10 @@ public class Session extends Thread {
 
     private void addEdge(String inputLine) {
         String[] tokens = tokenizeInput(inputLine);
-        String from = tokens[2];
-        String to = tokens[3];
+        String from = tokens[2], to = tokens[3];
         int weight = Integer.parseInt(tokens[4]);
         log.info("Adding Edge from Node [{}] to Node [{}] with Weight [{}].", from, to, weight);
-        if (graph.addEdge(tokens[2], tokens[3], weight)) {
+        if (graph.addEdge(from, to, weight)) {
             out.println(Messages.GS_0011.message());
         } else {
             log.warn("Could not add Edge from Node [{}] to Node [{}] with Weight [{}] because one of " +
@@ -155,8 +218,7 @@ public class Session extends Thread {
 
     private void shortestPath(String inputLine) {
         String[] tokens = tokenizeInput(inputLine);
-        String from = tokens[2];
-        String to = tokens[3];
+        String from = tokens[2], to = tokens[3];
         log.info("Getting Shortest Path from Node [{}] to Node [{}].", from, to);
         Integer path = graph.shortestPath(from, to);
         if (path == -1) {
@@ -171,8 +233,7 @@ public class Session extends Thread {
 
     private void closerThan(String inputLine) {
         String[] tokens = tokenizeInput(inputLine);
-        String weight = tokens[2];
-        String to = tokens[3];
+        String weight = tokens[2], to = tokens[3];
         log.info("Getting Nodes Closer Than [{}] to Node [{}].", weight, to);
         List<String> result = graph.closerThan(Integer.parseInt(weight), to);
         if (Objects.isNull(result)) {
@@ -187,6 +248,13 @@ public class Session extends Thread {
         }
     }
 
+    /**
+     * Method responsible for processing a greeting message.
+     * A greeting message is a message that starts with HI or BYE.
+     *
+     * @param inputLine String with the message.
+     * @return true if the conversation will continue, false otherwise.
+     */
     private boolean processGreetingMessage(String inputLine) {
         boolean continueConversation = true;
         if (inputLine.startsWith(Messages.GS_000.message())) {
@@ -203,6 +271,12 @@ public class Session extends Thread {
         return continueConversation;
     }
 
+    /**
+     * Tokenize the input providing an array of String objects.
+     *
+     * @param inputLine Input to be tokenized.
+     * @return Array of String.
+     */
     private String[] tokenizeInput(String inputLine) {
         return inputLine.split(" ");
     }
