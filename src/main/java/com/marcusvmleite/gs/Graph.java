@@ -135,27 +135,30 @@ public class Graph {
     private Map<Node, Integer> performDijkstra(Node from) {
 
         Map<Node, Integer> distances = new HashMap<>();
+        Set<Node> visited = new HashSet<>();
+
         distances.put(from, 0);
-        Queue<Node> q = new ArrayDeque<>(this.nodes.size());
+        from.weight = 0;
+
+        PriorityQueue<Node> q = new PriorityQueue<>(Comparator.comparingInt(o -> o.weight));
         q.offer(from);
         Node curr;
 
-        Set<Node> visited = new HashSet<>();
-
         while (!q.isEmpty()) {
             curr = q.poll();
+            if (visited.contains(curr)) {
+                continue;
+            }
             for (Edge edge : curr.edges) {
-                if (!visited.contains(edge.to)) {
-                    if (!distances.containsKey(edge.to) ||
-                            distances.get(edge.to) > edge.weight + distances.get(curr)) {
-                        distances.put(edge.to, edge.weight + distances.get(curr));
-                        q.offer(edge.to);
-                    }
+                if (!distances.containsKey(edge.to) ||
+                        distances.get(edge.to) > edge.weight + distances.get(curr)) {
+                    distances.put(edge.to, edge.weight + distances.get(curr));
+                    edge.to.weight = edge.weight + distances.get(curr);
+                    q.offer(edge.to);
                 }
             }
             visited.add(curr);
         }
-
         return distances;
     }
 
@@ -200,9 +203,11 @@ public class Graph {
         String name;
         Set<Graph.Edge> edges;
 
+        int weight;
+
         Node(String name) {
             this.name = name;
-            this.edges = new HashSet<>();
+            this.edges = new TreeSet<>();
         }
 
         void addEdge(Edge edge) {
@@ -230,7 +235,7 @@ public class Graph {
 
     }
 
-    private static final class Edge {
+    private static final class Edge implements Comparable<Edge> {
 
         Node from;
         Node to;
@@ -267,6 +272,32 @@ public class Graph {
                 return new Edge(this);
             }
 
+        }
+
+        @Override
+        public int compareTo(Edge o) {
+
+            final int BEFORE = -1;
+            final int EQUAL = 0;
+            final int AFTER = 1;
+
+            if (this == o || this.equals(o)) {
+                return EQUAL;
+            }
+
+            if (this.weight > o.weight) {
+                return AFTER;
+            } else if (this.weight < o.weight) {
+                return BEFORE;
+            }
+
+            if (!this.from.name.equals(o.from.name)) {
+                return this.from.name.compareTo(o.from.name);
+            } else if (!this.to.name.equals(o.to.name)) {
+                return this.to.name.compareTo(o.to.name);
+            }
+
+            return EQUAL;
         }
 
         @Override
