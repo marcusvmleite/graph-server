@@ -16,7 +16,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *      - Shortest Path between two Nodes, calculated
  *        with Dijkstra Algorithm;
  *      - Closest Nodes from a specific Node within a distance,
- *        calculated with Floyd-Warshall Algorithm.
+ *        calculated with Dijkstra Algorithm.
  *
  * All public methods are using ReentrantReadWriteLock to provide
  * Thread-Safety for Read and Write operations on the Graph.
@@ -28,9 +28,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class Graph {
 
     /**
-     * Read and Write lock.
+     * Read and Write lock. Fair mode enabled.
      */
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
 
     /**
      * Unique instance (Singleton Pattern).
@@ -46,24 +46,6 @@ public class Graph {
      * Map to keep all Edges of the Graph.
      */
     private Map<Edge, Edge> edges;
-
-    /**
-     * Flag to control when do we need to (re)calculate
-     * Floyd-Warshall. As this calculate Algorithm calculates
-     * distance between all Nodes of the Graph, this is not a
-     * very performatic operation (Big O for Floyd-Warshall is
-     * O(N^3), where N is the number of Nodes.
-     *
-     * When we calculate it, we'll only calculate again
-     * when there is change in the Graph's structure.
-     */
-    private boolean mustRecalculateFloydWarshall = true;
-
-    /**
-     * Floyd-Warshall calculated distances between all
-     * Nodes in the Graph.
-     */
-    double[][] distancesFloydWarshall;
 
     /**
      * Class constructor that initializes Thread-Safe Maps.
@@ -89,9 +71,6 @@ public class Graph {
      * This check is done by its name, so the Graph must have
      * only one Node with a specific name.
      *
-     * When we add a new node, we must tell the Graph
-     * that next time we'll need to recalculate Floyd-Warshall.
-     *
      * @param name Name of the {@link Node} being added.
      * @return true if successfully added, false otherwise.
      */
@@ -102,7 +81,6 @@ public class Graph {
             if (!this.nodes.containsKey(name)) {
                 this.nodes.put(name, new Node(name));
                 result = true;
-                this.mustRecalculateFloydWarshall = true;
             }
             return result;
         } finally {
@@ -118,9 +96,6 @@ public class Graph {
      * If an Edge between provided Nodes already exists
      * with a biggest weight, the method will only update
      * the weight of the existent Edge.
-     *
-     * When we add a new Edge, we must tell the Graph
-     * that next time we'll need to recalculate Floyd-Warshall.
      *
      * @param from From Node name.
      * @param to To Node name.
@@ -140,12 +115,10 @@ public class Graph {
                 if (!this.edges.containsKey(edge)) {
                     nodeFrom.addEdge(edge);
                     this.edges.put(edge, edge);
-                    this.mustRecalculateFloydWarshall = true;
                 } else {
                     Edge existingEdge = edges.get(edge);
                     if (weight < existingEdge.weight) {
                         existingEdge.weight = weight;
-                        this.mustRecalculateFloydWarshall = true;
                     }
                 }
             }
@@ -161,9 +134,6 @@ public class Graph {
      * It will check for existent Edges connected to this
      * Node and remove them accordingly.
      *
-     * When we remove a Node, we must tell the Graph
-     * that next time we'll need to recalculate Floyd-Warshall.
-     *
      * @param name Name of the Node being removed.
      * @return true if successfully added, false otherwise.
      */
@@ -178,7 +148,6 @@ public class Graph {
                     removeEdgeFromNodeMap(edge.to, edge.from);
                 }
                 result = true;
-                this.mustRecalculateFloydWarshall = true;
             }
             return result;
         } finally {
@@ -189,9 +158,6 @@ public class Graph {
     /**
      * Method responsible for removing an {@link Edge}
      * from the Graph. It will check for the Nodes' existence.
-     *
-     * When we remove a Node, we must tell the Graph
-     * that next time we'll need to recalculate Floyd-Warshall.
      *
      * @param from From Node of the Edge.
      * @param to To Node of the Edge.
@@ -208,7 +174,6 @@ public class Graph {
             } else {
                 removeEdgeFromNodeMap(nodeFrom, nodeTo);
                 removeEdgeFromEdgeMap(nodeFrom, nodeTo);
-                this.mustRecalculateFloydWarshall = true;
             }
             return result;
         } finally {
@@ -252,10 +217,8 @@ public class Graph {
      * a provided Node than the given weight. It will check for the
      * Nodes's existence.
      *
-     * This method uses Floyd-Warshall's Algorithm, that calculates
-     * all distances between all Nodes in the Graph. When calculated,
-     * it will be flagged that we do not need to recalculate it, unless
-     * there is a change in the Graph's structure.
+     * This method uses Dijkstra's Algorithm for calculating
+     * the distance between a Node and all other Nodes of the Graph.
      *
      * @param weight Provided weight.
      * @param to Target node for calculation.
@@ -269,22 +232,16 @@ public class Graph {
                 return null;
             }
 
-            //Check if its needed to (re)calculate Floyd-Warshall,
-            //otherwise it will be used previously calculated result.
-            if (this.mustRecalculateFloydWarshall) {
-                this.distancesFloydWarshall = performFloydWarshall();
-
-                //We'll (re)calculate again Floyd-Warshall only if the Graph change.
-                this.mustRecalculateFloydWarshall = false;
-            }
             List<String> result = new ArrayList<>();
-            for (Map.Entry<String, Node> pair : nodes.entrySet()) {
-                Node node = pair.getValue();
-                if (!node.equals(nodeTo) && this.distancesFloydWarshall[nodeTo.idx][node.idx] < weight) {
-                    result.add(node.name);
+            Map<Node, Integer> distances = performDijkstra(nodeTo);
+            for (Map.Entry<Node, Integer> pair : distances.entrySet()) {
+                Node curr = pair.getKey();
+                if (!curr.equals(nodeTo) && pair.getValue() < weight) {
+                    result.add(curr.name);
                 }
             }
             Collections.sort(result);
+
             return result;
         } finally {
             lock.readLock().unlock();
@@ -358,45 +315,6 @@ public class Graph {
     }
 
     /**
-     * Performs Floyd-Warshall Algorithm on the Graph.
-     * Floyd-Warshall is a well known algorithm that calculates
-     * the shortest distance between all Nodes in a directed and
-     * weighted graph.
-     *
-     * @return Calculated distances stored in a 2D Matrix.
-     */
-    private double[][] performFloydWarshall() {
-        double[][] distances = new double[nodes.size()][nodes.size()];
-        for (double[] row : distances) {
-            Arrays.fill(row, Double.POSITIVE_INFINITY);
-        }
-        //We give each Node a unique index for helping us
-        //storing it in the 2D Matrix.
-        int count = 0;
-        for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
-            Node node = pair.getValue();
-            node.idx = count++;
-        }
-        //Then we initialize our distance matrix with the current
-        //known weights from our edges.
-        for (Map.Entry<String, Node> pair : this.nodes.entrySet()) {
-            Node node = pair.getValue();
-            for (Edge edge : node.edges) {
-                distances[node.idx][edge.to.idx] = edge.weight;
-            }
-        }
-        for (int i = 0; i < nodes.size(); i++) {
-            for (int j = 0; j < nodes.size(); j++) {
-                for (int k = 0; k < nodes.size(); k++) {
-                    if (distances[j][i] + distances[i][k] < distances[j][k])
-                        distances[j][k] = distances[j][i] + distances[i][k];
-                }
-            }
-        }
-        return distances;
-    }
-
-    /**
      * Get the Nodes of the Graph.
      *
      * @return Map of Nodes.
@@ -425,12 +343,6 @@ public class Graph {
      * @version 1.0
      */
     static final class Node {
-
-        /**
-         * Index that will be used to assemble the 2D Matrix
-         * that is used to compute Floyd-Warshall Algorithm.
-         */
-        int idx;
 
         /**
          * Name of the Node.
