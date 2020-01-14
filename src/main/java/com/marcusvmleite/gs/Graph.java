@@ -2,6 +2,7 @@ package com.marcusvmleite.gs;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Class that represents a Directed Graph.
@@ -17,15 +18,19 @@ import java.util.concurrent.ConcurrentHashMap;
  *      - Closest Nodes from a specific Node within a distance,
  *        calculated with Floyd-Warshall Algorithm.
  *
- * All public methods are Synchronized to provide Thread-Safety
- * and Graph Consistency between changing structure operations
- * and queries.
+ * All public methods are using ReentrantReadWriteLock to provide
+ * Thread-Safety for Read and Write operations on the Graph.
  *
  * @author marcusvmleite
  * @since 13.01.2020
  * @version 1.0
  */
 public class Graph {
+
+    /**
+     * Read and Write lock.
+     */
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * Unique instance (Singleton Pattern).
@@ -74,7 +79,7 @@ public class Graph {
      *
      * @return Graph's unique instance.
      */
-    public synchronized static Graph getInstance() {
+    public static Graph getInstance() {
         return INSTANCE;
     }
 
@@ -90,14 +95,19 @@ public class Graph {
      * @param name Name of the {@link Node} being added.
      * @return true if successfully added, false otherwise.
      */
-    public synchronized boolean addNode(String name) {
-        boolean result = false;
-        if (!this.nodes.containsKey(name)) {
-            this.nodes.put(name, new Node(name));
-            result = true;
-            this.mustRecalculateFloydWarshall = true;
+    public boolean addNode(String name) {
+        lock.writeLock().lock();
+        try {
+            boolean result = false;
+            if (!this.nodes.containsKey(name)) {
+                this.nodes.put(name, new Node(name));
+                result = true;
+                this.mustRecalculateFloydWarshall = true;
+            }
+            return result;
+        } finally {
+            lock.writeLock().unlock();
         }
-        return result;
     }
 
     /**
@@ -117,27 +127,32 @@ public class Graph {
      * @param weight Weight of the Edge being added.
      * @return true if successfully added, false otherwise.
      */
-    public synchronized boolean addEdge(String from, String to, int weight) {
-        boolean result = true;
-        Node nodeFrom = this.nodes.get(from);
-        Node nodeTo = this.nodes.get(to);
-        if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
-            result = false;
-        } else {
-            Edge edge = new Edge.Builder().from(nodeFrom).to(nodeTo).withWeight(weight).build();
-            if (!this.edges.containsKey(edge)) {
-                nodeFrom.addEdge(edge);
-                this.edges.put(edge, edge);
-                this.mustRecalculateFloydWarshall = true;
+    public boolean addEdge(String from, String to, int weight) {
+        lock.writeLock().lock();
+        try {
+            boolean result = true;
+            Node nodeFrom = this.nodes.get(from);
+            Node nodeTo = this.nodes.get(to);
+            if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
+                result = false;
             } else {
-                Edge existingEdge = edges.get(edge);
-                if (weight < existingEdge.weight) {
-                    existingEdge.weight = weight;
+                Edge edge = new Edge.Builder().from(nodeFrom).to(nodeTo).withWeight(weight).build();
+                if (!this.edges.containsKey(edge)) {
+                    nodeFrom.addEdge(edge);
+                    this.edges.put(edge, edge);
                     this.mustRecalculateFloydWarshall = true;
+                } else {
+                    Edge existingEdge = edges.get(edge);
+                    if (weight < existingEdge.weight) {
+                        existingEdge.weight = weight;
+                        this.mustRecalculateFloydWarshall = true;
+                    }
                 }
             }
+            return result;
+        } finally {
+            lock.writeLock().unlock();
         }
-        return result;
     }
 
     /**
@@ -152,18 +167,23 @@ public class Graph {
      * @param name Name of the Node being removed.
      * @return true if successfully added, false otherwise.
      */
-    public synchronized boolean removeNode(String name) {
-        boolean result = false;
-        if (this.nodes.containsKey(name)) {
-            Node removed = this.nodes.remove(name);
-            for (Edge edge : removed.edges) {
-                removeEdgeFromEdgeMap(edge);
-                removeEdgeFromNodeMap(edge.to, edge.from);
+    public boolean removeNode(String name) {
+        lock.writeLock().lock();
+        try {
+            boolean result = false;
+            if (this.nodes.containsKey(name)) {
+                Node removed = this.nodes.remove(name);
+                for (Edge edge : removed.edges) {
+                    removeEdgeFromEdgeMap(edge);
+                    removeEdgeFromNodeMap(edge.to, edge.from);
+                }
+                result = true;
+                this.mustRecalculateFloydWarshall = true;
             }
-            result = true;
-            this.mustRecalculateFloydWarshall = true;
+            return result;
+        } finally {
+            lock.writeLock().unlock();
         }
-        return result;
     }
 
     /**
@@ -177,18 +197,23 @@ public class Graph {
      * @param to To Node of the Edge.
      * @return true if successfully added, false otherwise.
      */
-    public synchronized boolean removeEdge(String from, String to) {
-        boolean result = true;
-        Node nodeFrom = this.nodes.get(from);
-        Node nodeTo = this.nodes.get(to);
-        if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
-            result = false;
-        } else {
-            removeEdgeFromNodeMap(nodeFrom, nodeTo);
-            removeEdgeFromEdgeMap(nodeFrom, nodeTo);
-            this.mustRecalculateFloydWarshall = true;
+    public boolean removeEdge(String from, String to) {
+        lock.writeLock().lock();
+        try {
+            boolean result = true;
+            Node nodeFrom = this.nodes.get(from);
+            Node nodeTo = this.nodes.get(to);
+            if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
+                result = false;
+            } else {
+                removeEdgeFromNodeMap(nodeFrom, nodeTo);
+                removeEdgeFromEdgeMap(nodeFrom, nodeTo);
+                this.mustRecalculateFloydWarshall = true;
+            }
+            return result;
+        } finally {
+            lock.writeLock().unlock();
         }
-        return result;
     }
 
     /**
@@ -206,15 +231,20 @@ public class Graph {
      * @return Calculated distance between the nodes, of type {@link Integer}
      *         If at least one of the Nodes does not exists, -1 will be returned.
      */
-    public synchronized Integer shortestPath(String from, String to) {
-        Node nodeFrom = this.nodes.get(from);
-        Node nodeTo = this.nodes.get(to);
-        if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
-            return -1;
+    public Integer shortestPath(String from, String to) {
+        lock.readLock().lock();
+        try {
+            Node nodeFrom = this.nodes.get(from);
+            Node nodeTo = this.nodes.get(to);
+            if (Objects.isNull(nodeFrom) || Objects.isNull(nodeTo)) {
+                return -1;
+            }
+            Map<Node, Integer> distances = performDijkstra(nodeFrom);
+            Integer result = distances.get(nodeTo);
+            return result != null ? result : Integer.MAX_VALUE;
+        } finally {
+            lock.readLock().unlock();
         }
-        Map<Node, Integer> distances = performDijkstra(nodeFrom);
-        Integer result = distances.get(nodeTo);
-        return result != null ? result : Integer.MAX_VALUE;
     }
 
     /**
@@ -231,29 +261,34 @@ public class Graph {
      * @param to Target node for calculation.
      * @return List os Nodes's names closer to the provided Node.
      */
-    public synchronized List<String> closerThan(int weight, String to) {
-        Node nodeTo = this.nodes.get(to);
-        if (Objects.isNull(nodeTo)) {
-            return null;
-        }
-
-        //Check if its needed to (re)calculate Floyd-Warshall,
-        //otherwise it will be used previously calculated result.
-        if (this.mustRecalculateFloydWarshall) {
-            this.distancesFloydWarshall = performFloydWarshall();
-
-            //We'll (re)calculate again Floyd-Warshall only if the Graph change.
-            this.mustRecalculateFloydWarshall = false;
-        }
-        List<String> result = new ArrayList<>();
-        for (Map.Entry<String, Node> pair : nodes.entrySet()) {
-            Node node = pair.getValue();
-            if (!node.equals(nodeTo) && this.distancesFloydWarshall[nodeTo.idx][node.idx] < weight) {
-                result.add(node.name);
+    public List<String> closerThan(int weight, String to) {
+        lock.readLock().lock();
+        try {
+            Node nodeTo = this.nodes.get(to);
+            if (Objects.isNull(nodeTo)) {
+                return null;
             }
+
+            //Check if its needed to (re)calculate Floyd-Warshall,
+            //otherwise it will be used previously calculated result.
+            if (this.mustRecalculateFloydWarshall) {
+                this.distancesFloydWarshall = performFloydWarshall();
+
+                //We'll (re)calculate again Floyd-Warshall only if the Graph change.
+                this.mustRecalculateFloydWarshall = false;
+            }
+            List<String> result = new ArrayList<>();
+            for (Map.Entry<String, Node> pair : nodes.entrySet()) {
+                Node node = pair.getValue();
+                if (!node.equals(nodeTo) && this.distancesFloydWarshall[nodeTo.idx][node.idx] < weight) {
+                    result.add(node.name);
+                }
+            }
+            Collections.sort(result);
+            return result;
+        } finally {
+            lock.readLock().unlock();
         }
-        Collections.sort(result);
-        return result;
     }
 
     /**
@@ -389,7 +424,7 @@ public class Graph {
      * @since 13.01.2020
      * @version 1.0
      */
-    private static final class Node {
+    static final class Node {
 
         /**
          * Index that will be used to assemble the 2D Matrix
