@@ -222,7 +222,8 @@ public class Graph {
      *
      * @param weight Provided weight.
      * @param to Target node for calculation.
-     * @return List os Nodes's names closer to the provided Node.
+     * @return List os Nodes's names closer to the provided Node,
+     *         sorted alphabetically.
      */
     public List<String> closerThan(int weight, String to) {
         lock.readLock().lock();
@@ -235,7 +236,7 @@ public class Graph {
             Map<Node, Integer> distances = performDijkstra(nodeTo);
             for (Map.Entry<Node, Integer> pair : distances.entrySet()) {
                 Node curr = pair.getKey();
-                if (!curr.equals(nodeTo) && pair.getValue() < weight) {
+                if (!curr.equals(nodeTo) && pair.getValue() > 0 && pair.getValue() < weight) {
                     result.add(curr.name);
                 }
             }
