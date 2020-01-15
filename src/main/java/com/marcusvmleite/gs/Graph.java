@@ -14,9 +14,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *      - Add and Remove an Edge.
  * Besides, provides some common queries:
  *      - Shortest Path between two Nodes, calculated
- *        with Dijkstra Algorithm;
+ *        with Dijkstra's Algorithm;
  *      - Closest Nodes from a specific Node within a distance,
- *        calculated with Dijkstra Algorithm.
+ *        calculated with Dijkstra's Algorithm.
  *
  * All public methods are using ReentrantReadWriteLock to provide
  * Thread-Safety for Read and Write operations on the Graph.
@@ -282,6 +282,15 @@ public class Graph {
         }
     }
 
+    /**
+     * Performs Dijkstra's Algorithm.
+     * This is an algorithm for finding the shortest paths between
+     * nodes in a graph.
+     *
+     * @param from From {@link Node}.
+     * @return Map containing all the calculated distances from
+     *         the provided Node.
+     */
     private Map<Node, Integer> performDijkstra(Node from) {
 
         Map<Node, Integer> distances = new HashMap<>();
@@ -354,14 +363,14 @@ public class Graph {
 
         /**
          * This redundant weight attribute will be used for the
-         * PriorityQueue in Dijkstra Algorithm.
+         * PriorityQueue in Dijkstra's Algorithm.
          */
         int weight;
 
         /**
          * Node's constructor.
          * Edges set is built with {@link TreeSet} to guarantee
-         * sorting by the Edge's weight, needed for Dijkstra Algorithm.
+         * sorting by the Edge's weight, needed for Dijkstra's Algorithm.
          *
          * @param name Name of the Node.
          */

@@ -60,10 +60,16 @@ public class Session extends Thread {
      */
     private static final int TIMEOUT = 30000;
 
+    /**
+     * Regular Expressions for Input Pattern Matching.
+     */
     private static final String CLIENT_REGEX = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
     private static final String NUMERIC_REGEX = "([0-9]+)";
     private static final String NAME_REGEX = "[A-Za-z0-9_-]+";
 
+    /**
+     * Patterns.
+     */
     private static final Pattern GREETING = Pattern.compile("HI, I AM " + CLIENT_REGEX);
     private static final Pattern BYE = Pattern.compile("BYE MATE!");
     private static final Pattern ADD_NODE = Pattern.compile("ADD NODE " + NAME_REGEX);
@@ -123,7 +129,7 @@ public class Session extends Thread {
             this.in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             log.info("Session [{}] is now active.", this.sessionId);
-            out.println(String.format(Messages.GREETING.message(), this.sessionId));
+            reply(String.format(Messages.GREETING.message(), this.sessionId));
             String inputLine;
 
             while ((inputLine = in.readLine()) != null) {
@@ -152,7 +158,7 @@ public class Session extends Thread {
             long end = Instant.now().toEpochMilli();
             long total = end - start;
             log.info("Session [{}] with Client [{}] finished after [{}] ms.", sessionId, clientId, total);
-            out.println(String.format(Messages.FAREWELL.message(), this.clientId, total));
+            reply(String.format(Messages.FAREWELL.message(), this.clientId, total));
 
             in.close();
             out.close();
@@ -183,11 +189,11 @@ public class Session extends Thread {
         String from = tokens[2], to = tokens[3];
         log.info("Removing Edge from Node [{}] to Node [{}].", from, to);
         if (graph.removeEdge(from, tokens[3])) {
-            out.println(Messages.EDGE_REMOVED.message());
+            reply(Messages.EDGE_REMOVED.message());
         } else {
             log.warn("Could not remove Edge from Node [{}] to Node [{}] because one of " +
                     "the Nodes do not exists.", from, to);
-            out.println(Messages.NODE_NOT_FOUND.message());
+            reply(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -196,10 +202,10 @@ public class Session extends Thread {
         String name = tokens[2];
         log.info("Removing Node with name [{}].", name);
         if (graph.removeNode(name)) {
-            out.println(Messages.NODE_REMOVED.message());
+            reply(Messages.NODE_REMOVED.message());
         } else {
             log.warn("Could not remove Node with name [{}] because it do not exists.", name);
-            out.println(Messages.NODE_NOT_FOUND.message());
+            reply(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -209,11 +215,11 @@ public class Session extends Thread {
         int weight = Integer.parseInt(tokens[4]);
         log.info("Adding Edge from Node [{}] to Node [{}] with Weight [{}].", from, to, weight);
         if (graph.addEdge(from, to, weight)) {
-            out.println(Messages.EDGE_ADDED.message());
+            reply(Messages.EDGE_ADDED.message());
         } else {
             log.warn("Could not add Edge from Node [{}] to Node [{}] with Weight [{}] because one of " +
                     "the Nodes do not exists.", from, to, weight);
-            out.println(Messages.NODE_NOT_FOUND.message());
+            reply(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -222,10 +228,10 @@ public class Session extends Thread {
         String name = tokens[2];
         log.info("Adding Node with name [{}].", name);
         if (graph.addNode(name)) {
-            out.println(Messages.NODE_ADDED.message());
+            reply(Messages.NODE_ADDED.message());
         } else {
             log.warn("Could not add Node with name [{}] because it already exists.", name);
-            out.println(Messages.NODE_EXISTS.message());
+            reply(Messages.NODE_EXISTS.message());
         }
     }
 
@@ -237,10 +243,10 @@ public class Session extends Thread {
         if (path == -1) {
             log.warn("Could not get Shortest Path from Node [{}] to Node [{}] because one of " +
                     "the Nodes do not exists.", from, to);
-            out.println(Messages.NODE_NOT_FOUND.message());
+            reply(Messages.NODE_NOT_FOUND.message());
         } else {
             log.info("Shortest Path from Node [{}] to Node [{}] is [{}].", from, to, path);
-            out.println(path);
+            reply(path.toString());
         }
     }
 
@@ -252,12 +258,12 @@ public class Session extends Thread {
         if (Objects.isNull(result)) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}] because this Node does not exists.",
                     weight, to);
-            out.println(Messages.NODE_NOT_FOUND.message());
+            reply(Messages.NODE_NOT_FOUND.message());
         } else if (result.isEmpty()) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
-            out.println("");
+            reply("");
         } else{
-            out.println(String.join(",", result));
+            reply(String.join(",", result));
         }
     }
 
@@ -274,12 +280,12 @@ public class Session extends Thread {
             String[] tokens = tokenizeInput(inputLine);
             this.clientId = tokens[3];
             log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
-            out.println(String.format(Messages.GREETING_REPLY.message(), this.clientId));
+            reply(String.format(Messages.GREETING_REPLY.message(), this.clientId));
         } else if (Matcher.match(BYE, inputLine)) {
             continueConversation = false;
         } else {
             log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
-            out.println(Messages.SORRY.message());
+            reply(Messages.SORRY.message());
         }
         return continueConversation;
     }
@@ -295,10 +301,26 @@ public class Session extends Thread {
     }
 
     /**
+     * Reply to the Client using the {@link PrintWriter}.
+     *
+     * @param message Message to be sent.
+     */
+    private void reply(String message) {
+        out.println(message);
+    }
+
+    /**
      * Inner class for encapsulating the Pattern Matching behavior.
      */
     private static final class Matcher {
 
+        /**
+         * Matches an input with provided {@link Pattern}.
+         *
+         * @param pattern Pattern for matching.
+         * @param input Input to be validated.
+         * @return true if it matches, false otherwise.
+         */
         public static boolean match(Pattern pattern, String input) {
             java.util.regex.Matcher m = pattern.matcher(input);
             return m.matches();
@@ -306,6 +328,10 @@ public class Session extends Thread {
 
     }
 
+    /**
+     * Messages used by the Graph Server for sending
+     * to the Clients.
+     */
     private enum Messages {
 
         GREETING("HI, I AM %s"),
