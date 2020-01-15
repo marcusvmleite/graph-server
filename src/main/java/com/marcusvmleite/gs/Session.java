@@ -168,7 +168,30 @@ public class Session extends Thread {
         }
     }
 
-    private void processGraphMessage(String inputLine) {
+    /**
+     * Method responsible for processing a greeting message.
+     * A greeting message is a message that starts with HI or BYE.
+     *
+     * @param inputLine String with the message.
+     * @return true if the conversation will continue, false otherwise.
+     */
+    public boolean processGreetingMessage(String inputLine) {
+        boolean continueConversation = true;
+        if (Matcher.match(GREETING, inputLine)) {
+            String[] tokens = tokenizeInput(inputLine);
+            this.clientId = tokens[3];
+            log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
+            reply(String.format(Messages.GREETING_REPLY.message(), this.clientId));
+        } else if (Matcher.match(BYE, inputLine)) {
+            continueConversation = false;
+        } else {
+            log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
+            reply(Messages.SORRY.message());
+        }
+        return continueConversation;
+    }
+
+    public void processGraphMessage(String inputLine) {
         if (Matcher.match(ADD_NODE, inputLine)) {
             addNode(inputLine);
         } else if (Matcher.match(ADD_EDGE, inputLine)) {
@@ -265,29 +288,6 @@ public class Session extends Thread {
         } else{
             reply(String.join(",", result));
         }
-    }
-
-    /**
-     * Method responsible for processing a greeting message.
-     * A greeting message is a message that starts with HI or BYE.
-     *
-     * @param inputLine String with the message.
-     * @return true if the conversation will continue, false otherwise.
-     */
-    private boolean processGreetingMessage(String inputLine) {
-        boolean continueConversation = true;
-        if (Matcher.match(GREETING, inputLine)) {
-            String[] tokens = tokenizeInput(inputLine);
-            this.clientId = tokens[3];
-            log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
-            reply(String.format(Messages.GREETING_REPLY.message(), this.clientId));
-        } else if (Matcher.match(BYE, inputLine)) {
-            continueConversation = false;
-        } else {
-            log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
-            reply(Messages.SORRY.message());
-        }
-        return continueConversation;
     }
 
     /**

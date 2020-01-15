@@ -134,6 +134,8 @@ public class GraphTest {
         assertTrue(graph.addEdge("F", "G", 5));
 
         assertEquals(Integer.valueOf(8), graph.shortestPath("A", "G"));
+        assertEquals(Integer.valueOf(1), graph.shortestPath("A", "C"));
+        assertEquals(Integer.valueOf(2), graph.shortestPath("A", "E"));
     }
 
     @Test
