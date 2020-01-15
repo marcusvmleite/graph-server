@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Class that represents a Client's Session (conversation).
@@ -50,14 +51,27 @@ public class Session extends Thread {
 
     /**
      * Timeout for the Socket. After this time
-     * of innactivity the Session will be finalised and a final
-     * message will be sent to the Client
+     * of inactivity the Session will be finalised and a final
+     * message will be sent to the Client:
      * "BYE <name>, WE SPOKE FOR <X> MS"
      *
      * Where <name> is the name of the Client and X is the
-     * total time of the conversations in milliseconds.
+     * total time of the conversation in milliseconds.
      */
     private static final int TIMEOUT = 30000;
+
+    private static final String CLIENT_REGEX = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
+    private static final String NUMERIC_REGEX = "([0-9]+)";
+    private static final String NAME_REGEX = "[A-Za-z0-9_-]+";
+
+    private static final Pattern GREETING = Pattern.compile("HI, I AM " + CLIENT_REGEX);
+    private static final Pattern BYE = Pattern.compile("BYE MATE!");
+    private static final Pattern ADD_NODE = Pattern.compile("ADD NODE " + NAME_REGEX);
+    private static final Pattern REMOVE_NODE = Pattern.compile("REMOVE NODE " + NAME_REGEX);
+    private static final Pattern ADD_EDGE = Pattern.compile("ADD EDGE " + NAME_REGEX + " " + NAME_REGEX + " ([0-9]+)");
+    private static final Pattern REMOVE_EDGE = Pattern.compile("REMOVE EDGE " + NAME_REGEX + " " + NAME_REGEX);
+    private static final Pattern SHORTEST_PATH = Pattern.compile("SHORTEST PATH " + NAME_REGEX + " " + NAME_REGEX);
+    private static final Pattern CLOSER_THAN = Pattern.compile("CLOSER THAN " + NUMERIC_REGEX + " " + NAME_REGEX);
 
     /**
      * Socket of the Client.
@@ -109,12 +123,11 @@ public class Session extends Thread {
             this.in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             log.info("Session [{}] is now active.", this.sessionId);
-            out.println(String.format(Messages.GS_001.message(), this.sessionId));
+            out.println(String.format(Messages.GREETING.message(), this.sessionId));
             String inputLine;
 
             while ((inputLine = in.readLine()) != null) {
-                if (inputLine.startsWith(Messages.PREFIX_HI.message()) ||
-                        inputLine.startsWith(Messages.PREFIX_BYE.message())) {
+                if (Matcher.match(GREETING, inputLine) || Matcher.match(BYE, inputLine)) {
                     if (!processGreetingMessage(inputLine)) {
                         break;
                     }
@@ -139,7 +152,7 @@ public class Session extends Thread {
             long end = Instant.now().toEpochMilli();
             long total = end - start;
             log.info("Session [{}] with Client [{}] finished after [{}] ms.", sessionId, clientId, total);
-            out.println(String.format(Messages.GS_004.message(), this.clientId, total));
+            out.println(String.format(Messages.FAREWELL.message(), this.clientId, total));
 
             in.close();
             out.close();
@@ -150,17 +163,17 @@ public class Session extends Thread {
     }
 
     private void processGraphMessage(String inputLine) {
-        if (inputLine.startsWith(Messages.PREFIX_ADD_NODE.message())) {
+        if (Matcher.match(ADD_NODE, inputLine)) {
             addNode(inputLine);
-        } else if (inputLine.startsWith(Messages.PREFIX_ADD_EDGE.message())) {
+        } else if (Matcher.match(ADD_EDGE, inputLine)) {
             addEdge(inputLine);
-        } else if (inputLine.startsWith(Messages.PREFIX_REMOVE_NODE.message())) {
+        } else if (Matcher.match(REMOVE_NODE, inputLine)) {
             removeNode(inputLine);
-        } else if (inputLine.startsWith(Messages.PREFIX_REMOVE_EDGE.message())) {
+        } else if (Matcher.match(REMOVE_EDGE, inputLine)) {
             removeEdge(inputLine);
-        } else if (inputLine.startsWith(Messages.PREFIX_SHORTEST_PATH.message())) {
+        } else if (Matcher.match(SHORTEST_PATH, inputLine)) {
             shortestPath(inputLine);
-        } else if (inputLine.startsWith(Messages.PREFIX_CLOSER_THAN.message())) {
+        } else if (Matcher.match(CLOSER_THAN, inputLine)) {
             closerThan(inputLine);
         }
     }
@@ -174,7 +187,7 @@ public class Session extends Thread {
         } else {
             log.warn("Could not remove Edge from Node [{}] to Node [{}] because one of " +
                     "the Nodes do not exists.", from, to);
-            out.println(Messages.GS_0012.message());
+            out.println(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -186,7 +199,7 @@ public class Session extends Thread {
             out.println(Messages.NODE_REMOVED.message());
         } else {
             log.warn("Could not remove Node with name [{}] because it do not exists.", name);
-            out.println(Messages.GS_0012.message());
+            out.println(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -196,11 +209,11 @@ public class Session extends Thread {
         int weight = Integer.parseInt(tokens[4]);
         log.info("Adding Edge from Node [{}] to Node [{}] with Weight [{}].", from, to, weight);
         if (graph.addEdge(from, to, weight)) {
-            out.println(Messages.GS_0011.message());
+            out.println(Messages.EDGE_ADDED.message());
         } else {
             log.warn("Could not add Edge from Node [{}] to Node [{}] with Weight [{}] because one of " +
                     "the Nodes do not exists.", from, to, weight);
-            out.println(Messages.GS_0012.message());
+            out.println(Messages.NODE_NOT_FOUND.message());
         }
     }
 
@@ -209,10 +222,10 @@ public class Session extends Thread {
         String name = tokens[2];
         log.info("Adding Node with name [{}].", name);
         if (graph.addNode(name)) {
-            out.println(Messages.GS_008.message());
+            out.println(Messages.NODE_ADDED.message());
         } else {
             log.warn("Could not add Node with name [{}] because it already exists.", name);
-            out.println(Messages.GS_009.message());
+            out.println(Messages.NODE_EXISTS.message());
         }
     }
 
@@ -224,7 +237,7 @@ public class Session extends Thread {
         if (path == -1) {
             log.warn("Could not get Shortest Path from Node [{}] to Node [{}] because one of " +
                     "the Nodes do not exists.", from, to);
-            out.println(Messages.GS_0012.message());
+            out.println(Messages.NODE_NOT_FOUND.message());
         } else {
             log.info("Shortest Path from Node [{}] to Node [{}] is [{}].", from, to, path);
             out.println(path);
@@ -239,7 +252,7 @@ public class Session extends Thread {
         if (Objects.isNull(result)) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}] because this Node does not exists.",
                     weight, to);
-            out.println(Messages.GS_0012.message());
+            out.println(Messages.NODE_NOT_FOUND.message());
         } else if (result.isEmpty()) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
             out.println("");
@@ -257,16 +270,16 @@ public class Session extends Thread {
      */
     private boolean processGreetingMessage(String inputLine) {
         boolean continueConversation = true;
-        if (inputLine.startsWith(Messages.GS_000.message())) {
+        if (Matcher.match(GREETING, inputLine)) {
             String[] tokens = tokenizeInput(inputLine);
             this.clientId = tokens[3];
             log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
-            out.println(String.format(Messages.GS_002.message(), this.clientId));
-        } else if (Messages.GS_003.message().equals(inputLine)) {
+            out.println(String.format(Messages.GREETING_REPLY.message(), this.clientId));
+        } else if (Matcher.match(BYE, inputLine)) {
             continueConversation = false;
         } else {
             log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
-            out.println(Messages.GS_005.message());
+            out.println(Messages.SORRY.message());
         }
         return continueConversation;
     }
@@ -279,6 +292,44 @@ public class Session extends Thread {
      */
     private String[] tokenizeInput(String inputLine) {
         return inputLine.split(" ");
+    }
+
+    /**
+     * Inner class for encapsulating the Pattern Matching behavior.
+     */
+    private static final class Matcher {
+
+        public static boolean match(Pattern pattern, String input) {
+            java.util.regex.Matcher m = pattern.matcher(input);
+            return m.matches();
+        }
+
+    }
+
+    private enum Messages {
+
+        GREETING("HI, I AM %s"),
+        GREETING_REPLY("HI %s"),
+        FAREWELL("BYE %s, WE SPOKE FOR %d MS"),
+        SORRY("SORRY, I DID NOT UNDERSTAND THAT"),
+
+        NODE_ADDED("NODE ADDED"),
+        NODE_REMOVED("NODE REMOVED"),
+        NODE_EXISTS("ERROR: NODE ALREADY EXISTS"),
+        NODE_NOT_FOUND("ERROR: NODE NOT FOUND"),
+        EDGE_REMOVED("EDGE REMOVED"),
+        EDGE_ADDED("EDGE ADDED");
+
+        private String message;
+
+        Messages(String message) {
+            this.message = message;
+        }
+
+        public String message() {
+            return message;
+        }
+
     }
 
 }

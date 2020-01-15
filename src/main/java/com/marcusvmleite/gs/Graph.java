@@ -231,7 +231,6 @@ public class Graph {
             if (Objects.isNull(nodeTo)) {
                 return null;
             }
-
             List<String> result = new ArrayList<>();
             Map<Node, Integer> distances = performDijkstra(nodeTo);
             for (Map.Entry<Node, Integer> pair : distances.entrySet()) {
@@ -241,7 +240,6 @@ public class Graph {
                 }
             }
             Collections.sort(result);
-
             return result;
         } finally {
             lock.readLock().unlock();
