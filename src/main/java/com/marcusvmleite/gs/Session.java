@@ -1,5 +1,6 @@
 package com.marcusvmleite.gs;
 
+import javafx.util.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,7 +22,7 @@ import java.util.regex.Pattern;
  * depending on its contents.
  *
  * This class extends {@link Thread} so the application
- * is able to handle multiple Session at the same time.
+ * is able to handle multiple Sessions at the same time.
  *
  * Valid incoming messages from the Client are:
  *
@@ -68,7 +69,7 @@ public class Session extends Thread {
     private static final String NAME_REGEX = "[A-Za-z0-9_-]+";
 
     /**
-     * Patterns.
+     * Patterns for recognizing incoming messages.
      */
     private static final Pattern GREETING = Pattern.compile("HI, I AM " + CLIENT_REGEX);
     private static final Pattern BYE = Pattern.compile("BYE MATE!");
@@ -78,6 +79,12 @@ public class Session extends Thread {
     private static final Pattern REMOVE_EDGE = Pattern.compile("REMOVE EDGE " + NAME_REGEX + " " + NAME_REGEX);
     private static final Pattern SHORTEST_PATH = Pattern.compile("SHORTEST PATH " + NAME_REGEX + " " + NAME_REGEX);
     private static final Pattern CLOSER_THAN = Pattern.compile("CLOSER THAN " + NUMERIC_REGEX + " " + NAME_REGEX);
+
+    /**
+     * Flag for an invalid path obtained as a result to the
+     * Shortest Path call.
+     */
+    public static final Integer INVALID_PATH = -1;
 
     /**
      * Socket of the Client.
@@ -134,11 +141,14 @@ public class Session extends Thread {
 
             while ((inputLine = in.readLine()) != null) {
                 if (Matcher.match(GREETING, inputLine) || Matcher.match(BYE, inputLine)) {
-                    if (!processGreetingMessage(inputLine)) {
+                    Pair<Boolean, String> greetingResult = processGreetingMessage(inputLine);
+                    if (greetingResult.getKey()) {
+                        reply(greetingResult.getValue());
+                    } else {
                         break;
                     }
                 } else {
-                    processGraphMessage(inputLine);
+                    reply(processGraphMessage(inputLine));
                 }
             }
 
@@ -172,122 +182,191 @@ public class Session extends Thread {
      * Method responsible for processing a greeting message.
      * A greeting message is a message that starts with HI or BYE.
      *
-     * @param inputLine String with the message.
-     * @return true if the conversation will continue, false otherwise.
+     * @param inputLine String with the incoming message.
+     * @return Pair object where the key is a flag that determines
+     *         if the conversation can proceed (true if the conversation
+     *         will proceed, false otherwise). If it will proceed, the
+     *         Pair value will keep the message to be sent back.
      */
-    public boolean processGreetingMessage(String inputLine) {
+    public Pair<Boolean, String> processGreetingMessage(String inputLine) {
+        String result = null;
         boolean continueConversation = true;
         if (Matcher.match(GREETING, inputLine)) {
             String[] tokens = tokenizeInput(inputLine);
             this.clientId = tokens[3];
             log.info("Session [{}] received greeting from Client [{}].", this.sessionId, this.clientId);
-            reply(String.format(Messages.GREETING_REPLY.message(), this.clientId));
+            result = String.format(Messages.GREETING_REPLY.message(), this.clientId);
         } else if (Matcher.match(BYE, inputLine)) {
             continueConversation = false;
         } else {
             log.warn("Session received a message that could not be recognized. Message was: [{}].", inputLine);
-            reply(Messages.SORRY.message());
+            result = Messages.SORRY.message();
         }
-        return continueConversation;
+        return  new Pair<>(continueConversation, result);
     }
 
-    public void processGraphMessage(String inputLine) {
+    /**
+     * Method responsible for processing a graph message.
+     * A graph message is a message that tells the program
+     * to performa changes or queries on the graph.
+     *
+     * @param inputLine String with the incoming message.
+     * @return Message with the result of the operation.
+     */
+    public String processGraphMessage(String inputLine) {
+        String result = null;
         if (Matcher.match(ADD_NODE, inputLine)) {
-            addNode(inputLine);
+            result = addNode(inputLine);
         } else if (Matcher.match(ADD_EDGE, inputLine)) {
-            addEdge(inputLine);
+            result = addEdge(inputLine);
         } else if (Matcher.match(REMOVE_NODE, inputLine)) {
-            removeNode(inputLine);
+            result = removeNode(inputLine);
         } else if (Matcher.match(REMOVE_EDGE, inputLine)) {
-            removeEdge(inputLine);
+            result = removeEdge(inputLine);
         } else if (Matcher.match(SHORTEST_PATH, inputLine)) {
-            shortestPath(inputLine);
+            result = shortestPath(inputLine);
         } else if (Matcher.match(CLOSER_THAN, inputLine)) {
-            closerThan(inputLine);
+            result = closerThan(inputLine);
         }
+        return result;
     }
 
-    private void removeEdge(String inputLine) {
-        String[] tokens = tokenizeInput(inputLine);
-        String from = tokens[2], to = tokens[3];
-        log.info("Removing Edge from Node [{}] to Node [{}].", from, to);
-        if (graph.removeEdge(from, tokens[3])) {
-            reply(Messages.EDGE_REMOVED.message());
-        } else {
-            log.warn("Could not remove Edge from Node [{}] to Node [{}] because one of " +
-                    "the Nodes do not exists.", from, to);
-            reply(Messages.NODE_NOT_FOUND.message());
-        }
-    }
-
-    private void removeNode(String inputLine) {
+    /**
+     * Parse the message that tells the application
+     * to add a node and pass it to the graph.
+     *
+     * @param inputLine Instruction for adding the node.
+     * @return Message with the result of the operation.
+     */
+    private String addNode(String inputLine) {
+        String result;
         String[] tokens = tokenizeInput(inputLine);
         String name = tokens[2];
-        log.info("Removing Node with name [{}].", name);
-        if (graph.removeNode(name)) {
-            reply(Messages.NODE_REMOVED.message());
+        log.info("Adding Node with name [{}].", name);
+        if (graph.addNode(name)) {
+            result = Messages.NODE_ADDED.message();
         } else {
-            log.warn("Could not remove Node with name [{}] because it do not exists.", name);
-            reply(Messages.NODE_NOT_FOUND.message());
+            log.warn("Could not add Node with name [{}] because it already exists.", name);
+            result = Messages.NODE_EXISTS.message();
         }
+        return result;
     }
 
-    private void addEdge(String inputLine) {
+    /**
+     * Parse the message that tells the application
+     * to add an edge and pass it to the graph.
+     *
+     * @param inputLine Instruction for adding the edge.
+     * @return Message with the result of the operation.
+     */
+    private String addEdge(String inputLine) {
+        String result;
         String[] tokens = tokenizeInput(inputLine);
         String from = tokens[2], to = tokens[3];
         int weight = Integer.parseInt(tokens[4]);
         log.info("Adding Edge from Node [{}] to Node [{}] with Weight [{}].", from, to, weight);
         if (graph.addEdge(from, to, weight)) {
-            reply(Messages.EDGE_ADDED.message());
+            result = Messages.EDGE_ADDED.message();
         } else {
             log.warn("Could not add Edge from Node [{}] to Node [{}] with Weight [{}] because one of " +
                     "the Nodes do not exists.", from, to, weight);
-            reply(Messages.NODE_NOT_FOUND.message());
+            result = Messages.NODE_NOT_FOUND.message();
         }
+        return result;
     }
 
-    private void addNode(String inputLine) {
+    /**
+     * Parse the message that tells the application
+     * to remove the edge and pass it to the graph.
+     *
+     * @param inputLine Instruction for removing the edge.
+     * @return Message with the result of the operation.
+     */
+    private String removeEdge(String inputLine) {
+        String result;
+        String[] tokens = tokenizeInput(inputLine);
+        String from = tokens[2], to = tokens[3];
+        log.info("Removing Edge from Node [{}] to Node [{}].", from, to);
+        if (graph.removeEdge(from, tokens[3])) {
+            result = Messages.EDGE_REMOVED.message();
+        } else {
+            log.warn("Could not remove Edge from Node [{}] to Node [{}] because one of " +
+                    "the Nodes do not exists.", from, to);
+            result = Messages.NODE_NOT_FOUND.message();
+        }
+        return result;
+    }
+
+    /**
+     * Parse the message that tells the application
+     * to remove a node and pass it to the graph.
+     *
+     * @param inputLine Instruction for removing the node.
+     * @return Message with the result of the operation.
+     */
+    private String removeNode(String inputLine) {
+        String result;
         String[] tokens = tokenizeInput(inputLine);
         String name = tokens[2];
-        log.info("Adding Node with name [{}].", name);
-        if (graph.addNode(name)) {
-            reply(Messages.NODE_ADDED.message());
+        log.info("Removing Node with name [{}].", name);
+        if (graph.removeNode(name)) {
+            result = Messages.NODE_REMOVED.message();
         } else {
-            log.warn("Could not add Node with name [{}] because it already exists.", name);
-            reply(Messages.NODE_EXISTS.message());
+            log.warn("Could not remove Node with name [{}] because it do not exists.", name);
+            result = Messages.NODE_NOT_FOUND.message();
         }
+        return result;
     }
 
-    private void shortestPath(String inputLine) {
+    /**
+     * Parse the message that tells the application
+     * to get the shortest path between nodes.
+     *
+     * @param inputLine Instruction for getting the shortest path.
+     * @return Message with the result of the operation.
+     */
+    private String shortestPath(String inputLine) {
+        String result;
         String[] tokens = tokenizeInput(inputLine);
         String from = tokens[2], to = tokens[3];
         log.info("Getting Shortest Path from Node [{}] to Node [{}].", from, to);
         Integer path = graph.shortestPath(from, to);
-        if (path == -1) {
+        if (INVALID_PATH.equals(path)) {
             log.warn("Could not get Shortest Path from Node [{}] to Node [{}] because one of " +
-                    "the Nodes do not exists.", from, to);
-            reply(Messages.NODE_NOT_FOUND.message());
+                    "the Nodes does not exists.", from, to);
+            result = Messages.NODE_NOT_FOUND.message();
         } else {
             log.info("Shortest Path from Node [{}] to Node [{}] is [{}].", from, to, path);
-            reply(path.toString());
+            result = path.toString();
         }
+        return result;
     }
 
-    private void closerThan(String inputLine) {
+    /**
+     * Parse the message that tells the application
+     * to get closest nodes from a specific one with
+     * the provided distance.
+     *
+     * @param inputLine Instruction for getting the closest nodes.
+     * @return Message with the result of the operation.
+     */
+    private String closerThan(String inputLine) {
+        String result;
         String[] tokens = tokenizeInput(inputLine);
         String weight = tokens[2], to = tokens[3];
         log.info("Getting Nodes Closer Than [{}] to Node [{}].", weight, to);
-        List<String> result = graph.closerThan(Integer.parseInt(weight), to);
-        if (Objects.isNull(result)) {
+        List<String> closer = graph.closerThan(Integer.parseInt(weight), to);
+        if (Objects.isNull(closer)) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}] because this Node does not exists.",
                     weight, to);
-            reply(Messages.NODE_NOT_FOUND.message());
-        } else if (result.isEmpty()) {
+            result = Messages.NODE_NOT_FOUND.message();
+        } else if (closer.isEmpty()) {
             log.warn("Could not get Nodes Closer Than [{}] to Node [{}].", weight, to);
-            reply("");
+            result = "";
         } else{
-            reply(String.join(",", result));
+            result = String.join(",", closer);
         }
+        return result;
     }
 
     /**
@@ -324,36 +403,6 @@ public class Session extends Thread {
         public static boolean match(Pattern pattern, String input) {
             java.util.regex.Matcher m = pattern.matcher(input);
             return m.matches();
-        }
-
-    }
-
-    /**
-     * Messages used by the Graph Server for sending
-     * to the Clients.
-     */
-    private enum Messages {
-
-        GREETING("HI, I AM %s"),
-        GREETING_REPLY("HI %s"),
-        FAREWELL("BYE %s, WE SPOKE FOR %d MS"),
-        SORRY("SORRY, I DID NOT UNDERSTAND THAT"),
-
-        NODE_ADDED("NODE ADDED"),
-        NODE_REMOVED("NODE REMOVED"),
-        NODE_EXISTS("ERROR: NODE ALREADY EXISTS"),
-        NODE_NOT_FOUND("ERROR: NODE NOT FOUND"),
-        EDGE_REMOVED("EDGE REMOVED"),
-        EDGE_ADDED("EDGE ADDED");
-
-        private String message;
-
-        Messages(String message) {
-            this.message = message;
-        }
-
-        public String message() {
-            return message;
         }
 
     }

@@ -341,6 +341,14 @@ public class Graph {
     }
 
     /**
+     * Clear the graph.
+     */
+    public void clear() {
+        this.nodes.clear();
+        this.edges.clear();
+    }
+
+    /**
      * Inner class that represents a Node in the Graph.
      * Attributes have accessibility default to make the
      * Graph code less verbose (and this class is used
